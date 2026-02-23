@@ -15,7 +15,7 @@
     <description>Shared Vaadin UI components for Embabel applications</description>
 
     <properties>
-        <embabel-agent.version>0.3.4</embabel-agent.version>
+        <embabel-agent.version>0.3.5-SNAPSHOT</embabel-agent.version>
         <vaadin.version>24.6.4</vaadin.version>
     </properties>
 
