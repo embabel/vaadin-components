@@ -27,6 +27,7 @@ The `MemorySection`, `PropositionsPanel`, and `PropositionCard` components provi
 | Component | Description |
 |-----------|-------------|
 | `ChatMessageBubble` | Message bubble with sender label. User messages render as plain text (accent-colored, right-aligned). Assistant messages render markdown via CommonMark (left-aligned). Factory methods: `user()`, `assistant()`, `error()`. |
+| `VoiceControl` | Microphone and speaker buttons using the Web Speech API. Records audio and sends to server for OpenAI Whisper transcription (falls back to browser speech recognition). Speaker button toggles auto-speak of assistant responses via server-side TTS with browser fallback. |
 
 ### Memory & Knowledge
 
@@ -53,6 +54,7 @@ The `MemorySection`, `PropositionsPanel`, and `PropositionCard` components provi
 
 | Component | Description |
 |-----------|-------------|
+| `BaseLoginView` | Abstract login view with logo, title, subtitle, and optional test credential hints. Handles login error display via query parameters. Subclasses add `@Route`, `@PageTitle`, and `@AnonymousAllowed` annotations and pass app-specific configuration to the constructor. |
 | `UserSection` | Profile chip with a circular avatar displaying user initials and the display name. Clicking triggers a configurable callback. |
 | `Footer` | Horizontal footer with copyright text and optional statistics. |
 
@@ -63,6 +65,7 @@ The `MemorySection`, `PropositionsPanel`, and `PropositionCard` components provi
 | `DocumentListSection` | Lists indexed documents with stats (document count, chunk count), context badges, and per-document delete. Implements `DocumentInfoProvider`. |
 | `FileUploadSection` | File upload for document ingestion. Accepts PDF, TXT, Markdown, HTML, and Word formats (10MB max). |
 | `UrlIngestSection` | Text field + button for ingesting content from a URL. Auto-prepends `https://` if missing, runs ingestion in a background thread. |
+| `HtmlIngestSection` | Title field + text area for directly pasting HTML content. Takes a `BiConsumer<String, String>` (html, title) for ingestion, keeping the component decoupled from any specific document service. |
 | `DocumentInfoProvider` | Interface abstracting document metadata access. Record type `DocumentInfo` carries URI, title, context, chunk count, and ingestion timestamp. |
 
 ## Theming
