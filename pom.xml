@@ -61,6 +61,12 @@
             <version>0.24.0</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>org.commonmark</groupId>
+            <artifactId>commonmark-ext-gfm-tables</artifactId>
+            <version>0.24.0</version>
+            <scope>provided</scope>
+        </dependency>
 
         <!-- Embabel Agent API -->
         <dependency>

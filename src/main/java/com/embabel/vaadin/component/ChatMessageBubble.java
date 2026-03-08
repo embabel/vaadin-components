@@ -18,8 +18,12 @@ package com.embabel.vaadin.component;
 import com.vaadin.flow.component.Html;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
+import org.commonmark.Extension;
+import org.commonmark.ext.gfm.tables.TablesExtension;
 import org.commonmark.parser.Parser;
 import org.commonmark.renderer.html.HtmlRenderer;
+
+import java.util.List;
 
 /**
  * Chat message bubble component with sender name and text content.
@@ -28,8 +32,9 @@ import org.commonmark.renderer.html.HtmlRenderer;
  */
 public class ChatMessageBubble extends Div {
 
-    private static final Parser MARKDOWN_PARSER = Parser.builder().build();
-    private static final HtmlRenderer HTML_RENDERER = HtmlRenderer.builder().build();
+    private static final List<Extension> EXTENSIONS = List.of(TablesExtension.create());
+    private static final Parser MARKDOWN_PARSER = Parser.builder().extensions(EXTENSIONS).build();
+    private static final HtmlRenderer HTML_RENDERER = HtmlRenderer.builder().extensions(EXTENSIONS).build();
 
     public ChatMessageBubble(String sender, String text, boolean isUser) {
         addClassName("chat-bubble-container");

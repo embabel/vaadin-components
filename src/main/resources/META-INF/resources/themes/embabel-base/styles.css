@@ -148,6 +148,31 @@ vaadin-vertical-layout {
   color: var(--sb-link-hover, var(--sb-accent));
 }
 
+.chat-bubble.assistant .chat-bubble-text table {
+  border-collapse: collapse;
+  margin: var(--lumo-space-s) 0;
+  font-size: 0.9em;
+  width: 100%;
+  overflow-x: auto;
+  display: block;
+}
+
+.chat-bubble.assistant .chat-bubble-text th,
+.chat-bubble.assistant .chat-bubble-text td {
+  border: 1px solid var(--sb-border);
+  padding: var(--lumo-space-xs) var(--lumo-space-s);
+  text-align: left;
+}
+
+.chat-bubble.assistant .chat-bubble-text th {
+  background: rgba(0, 0, 0, 0.2);
+  font-weight: 600;
+}
+
+.chat-bubble.assistant .chat-bubble-text tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.1);
+}
+
 /* Error message */
 .chat-bubble-error {
   background: rgba(239, 68, 68, 0.2);
