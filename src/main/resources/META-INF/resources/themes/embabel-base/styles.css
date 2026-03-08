@@ -866,6 +866,74 @@ vaadin-login-form-wrapper::part(form-title) {
   font-family: monospace;
 }
 
+/* ===== Skill Card ===== */
+
+.skill-card {
+  background: var(--sb-bg-light);
+  border: 1px solid var(--sb-border);
+  border-radius: var(--lumo-border-radius-m);
+  padding: var(--lumo-space-m);
+  margin-bottom: var(--lumo-space-s);
+}
+
+.skill-card:hover {
+  border-color: var(--sb-accent);
+}
+
+.skill-card-name {
+  display: block;
+  color: var(--sb-heading, var(--sb-text-primary));
+  font-weight: 600;
+  font-size: var(--lumo-font-size-m);
+}
+
+.skill-card-desc {
+  display: block;
+  color: var(--sb-text-secondary);
+  font-size: var(--lumo-font-size-s);
+  margin-top: var(--lumo-space-xs);
+}
+
+/* ===== API Card ===== */
+
+.api-card {
+  background: var(--sb-bg-light);
+  border: 1px solid var(--sb-border);
+  border-radius: var(--lumo-border-radius-m);
+  padding: var(--lumo-space-m);
+  margin-bottom: var(--lumo-space-s);
+}
+
+.api-card:hover {
+  border-color: var(--sb-accent);
+}
+
+.api-card-name {
+  display: block;
+  color: var(--sb-heading, var(--sb-text-primary));
+  font-weight: 600;
+  font-size: var(--lumo-font-size-m);
+}
+
+.api-card-desc {
+  display: block;
+  color: var(--sb-text-secondary);
+  font-size: var(--lumo-font-size-s);
+  margin-top: var(--lumo-space-xs);
+}
+
+.api-card-auth {
+  display: inline-block;
+  background: var(--sb-bg-medium);
+  border: 1px solid var(--sb-border);
+  color: var(--sb-text-muted);
+  font-size: var(--lumo-font-size-xs);
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-top: var(--lumo-space-xs);
+  font-family: monospace;
+}
+
 /* ===== Cluster View ===== */
 
 /* Accent palette for cluster color coding */

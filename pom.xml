@@ -73,6 +73,13 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- Embabel API Client (LearnedApi, AuthRequirement) -->
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-api-client</artifactId>
+            <version>${embabel-agent.version}</version>
+        </dependency>
+
         <!-- Embabel RAG Core -->
         <dependency>
             <groupId>com.embabel.agent</groupId>

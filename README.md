@@ -44,6 +44,13 @@ The `MemorySection`, `PropositionsPanel`, and `PropositionCard` components provi
 | `EntitiesSection` | Scrollable list of all named entities for the current context. Loads from `NamedEntityDataRepository`, displays entity count, and supports refresh. |
 | `EntityPanel` | Card for a single resolved entity showing type badge, name, description, and ID. Used standalone and in dialogs opened from `PropositionCard`. |
 
+### APIs
+
+| Component | Description |
+|-----------|-------------|
+| `ApisSection` | Displays learned APIs from `LearnedApi` instances. Shows API name, description, and structured auth requirements (API key location, OAuth2 scopes, bearer scheme). |
+| `SkillsSection` | Lists loaded skills with name and description. Uses a generic `SkillInfo` record. |
+
 ### Schema
 
 | Component | Description |
@@ -111,6 +118,7 @@ This library is published as a Maven artifact with `provided` scope dependencies
 | `spring-boot-starter-security` | Authentication context for `UserSection` |
 | `commonmark` | Markdown rendering in `ChatMessageBubble` |
 | `embabel-agent-api` | `User`, `DataDictionary`, domain types |
+| `embabel-api-client` | `LearnedApi`, `AuthRequirement` for `ApisSection` |
 | `embabel-agent-rag-core` | `NamedEntity`, `NamedEntityDataRepository`, `Cluster` |
 | `dice` (optional) | `Proposition`, `PropositionRepository`, `PropositionQuery` |
 | `embabel-agent-rag-tika` (optional) | Document parsing for file upload |
