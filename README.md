@@ -44,6 +44,14 @@ The `MemorySection`, `PropositionsPanel`, and `PropositionCard` components provi
 | `EntitiesSection` | Scrollable list of all named entities for the current context. Loads from `NamedEntityDataRepository`, displays entity count, and supports refresh. |
 | `EntityPanel` | Card for a single resolved entity showing type badge, name, description, and ID. Used standalone and in dialogs opened from `PropositionCard`. |
 
+### Agent Platform
+
+| Component | Description |
+|-----------|-------------|
+| `AgentsSection` | Displays registered agents as expandable cards. Collapsed view shows agent name, provider badge, and action/goal counts. Expanding reveals the agent's description and its actions and goals rendered inline using `ActionsSection.createActionCard()` and `GoalsSection.createGoalCard()`. Uses Vaadin `Details` for click-to-expand. |
+| `ActionsSection` | Displays registered actions. Each card shows action name, description, input/output type badges with arrow notation, and flags (rerunnable, read-only). `createActionCard()` is public static for reuse by `AgentsSection`. |
+| `GoalsSection` | Displays registered goals. Each card shows goal name, description, output type, tag badges, and example scenarios in italics. `createGoalCard()` is public static for reuse by `AgentsSection`. |
+
 ### Capabilities
 
 | Component | Description |
