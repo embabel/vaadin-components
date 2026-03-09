@@ -982,6 +982,84 @@ vaadin-login-form-wrapper::part(form-title) {
   font-family: monospace;
 }
 
+/* ===== Domain Type Details ===== */
+
+.domain-type-item {
+  background: var(--sb-bg-light);
+  border: 1px solid var(--sb-border);
+  border-radius: var(--lumo-border-radius-m);
+  margin-bottom: var(--lumo-space-s);
+}
+
+.domain-type-item:hover {
+  border-color: var(--sb-accent);
+}
+
+.domain-type-name {
+  color: var(--sb-heading, var(--sb-text-primary));
+  font-weight: 600;
+  font-size: var(--lumo-font-size-m);
+}
+
+.domain-type-props-badge {
+  display: inline-block;
+  background: var(--sb-bg-medium);
+  border: 1px solid var(--sb-border);
+  color: var(--sb-text-muted);
+  font-size: var(--lumo-font-size-xs);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-family: monospace;
+}
+
+.domain-type-badge-dynamic {
+  display: inline-block;
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  color: #fbbf24;
+  font-size: var(--lumo-font-size-xs);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.domain-type-content {
+  padding: var(--lumo-space-xs) var(--lumo-space-s);
+}
+
+.domain-type-description {
+  display: block;
+  color: var(--sb-text-secondary);
+  font-size: var(--lumo-font-size-s);
+  margin-bottom: var(--lumo-space-xs);
+}
+
+.domain-type-properties {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumo-space-xs);
+  margin-top: var(--lumo-space-xs);
+}
+
+.domain-type-property {
+  display: flex;
+  gap: var(--lumo-space-s);
+  align-items: baseline;
+}
+
+.property-name {
+  color: var(--sb-text-primary);
+  font-family: monospace;
+  font-size: var(--lumo-font-size-s);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.property-description {
+  color: var(--sb-text-muted);
+  font-size: var(--lumo-font-size-xs);
+}
+
 /* ===== Cluster View ===== */
 
 /* Accent palette for cluster color coding */

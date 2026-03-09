@@ -44,18 +44,27 @@ The `MemorySection`, `PropositionsPanel`, and `PropositionCard` components provi
 | `EntitiesSection` | Scrollable list of all named entities for the current context. Loads from `NamedEntityDataRepository`, displays entity count, and supports refresh. |
 | `EntityPanel` | Card for a single resolved entity showing type badge, name, description, and ID. Used standalone and in dialogs opened from `PropositionCard`. |
 
-### APIs
+### Capabilities
 
 | Component | Description |
 |-----------|-------------|
 | `ApisSection` | Displays learned APIs from `LearnedApi` instances. Shows API name, description, and structured auth requirements (API key location, OAuth2 scopes, bearer scheme). |
 | `SkillsSection` | Lists loaded skills with name and description. Uses a generic `SkillInfo` record. |
+| `McpSection` | Displays MCP (Model Context Protocol) servers with name, description, tool count, and individual tool names. Uses a decoupled `McpServerInfo` record — no dependency on the MCP SDK. |
 
-### Schema
+### Schema & Domain Types
 
 | Component | Description |
 |-----------|-------------|
-| `SchemaSection` | Renders the domain type schema from `DataDictionary`. Each type card shows its label, description, property badges (monospace), and relationship arrows (type -> target). |
+| `SchemaSection` | Simple flat rendering of the domain type schema from `DataDictionary`. Each type card shows its label, description, property badges (monospace), and relationship arrows (type -> target). |
+| `DomainTypesSection` | Enhanced expandable domain type display. Accepts a `Collection<DomainType>` — static and dynamic types are shown together, sorted alphabetically. Each type is a collapsible `Details` card showing property count badge, description, value properties with descriptions, and relationship arrows. Dynamic types are visually distinguished with an italic name and amber "dynamic" badge. |
+
+### Human-in-the-Loop
+
+| Component | Description |
+|-----------|-------------|
+| `AwaitableRenderer` | Renders human-in-the-loop interaction points from `AgentProcess`. Displays awaitable requests (approvals, form submissions) as inline cards with action buttons. Supports approval/rejection and form display via `FormRenderer`. |
+| `FormRenderer` | Converts an Embabel `Form` definition into Vaadin form fields. Supports text, text area, integer, number, date, boolean (checkbox), select (combo/radio), and multi-select fields with validation. Returns a `FormSubmission` on submit. |
 
 ### User & Layout
 
@@ -73,6 +82,7 @@ The `MemorySection`, `PropositionsPanel`, and `PropositionCard` components provi
 | `FileUploadSection` | File upload for document ingestion. Accepts PDF, TXT, Markdown, HTML, and Word formats (10MB max). |
 | `UrlIngestSection` | Text field + button for ingesting content from a URL. Auto-prepends `https://` if missing, runs ingestion in a background thread. |
 | `HtmlIngestSection` | Title field + text area for directly pasting HTML content. Takes a `BiConsumer<String, String>` (html, title) for ingestion, keeping the component decoupled from any specific document service. |
+| `DocumentsPanel` | Reusable composite combining `FileUploadSection`, `UrlIngestSection`, and `DocumentListSection` into a single panel. Accepts functional interfaces for upload and URL ingestion, keeping it decoupled from any specific document service. |
 | `DocumentInfoProvider` | Interface abstracting document metadata access. Record type `DocumentInfo` carries URI, title, context, chunk count, and ingestion timestamp. |
 
 ## Theming
@@ -121,6 +131,7 @@ This library is published as a Maven artifact with `provided` scope dependencies
 | `embabel-api-client` | `LearnedApi`, `AuthRequirement` for `ApisSection` |
 | `embabel-agent-rag-core` | `NamedEntity`, `NamedEntityDataRepository`, `Cluster` |
 | `dice` (optional) | `Proposition`, `PropositionRepository`, `PropositionQuery` |
+| `embabel-ux-form` | Form definitions for `FormRenderer` |
 | `embabel-agent-rag-tika` (optional) | Document parsing for file upload |
 
 ### Maven Coordinates
