@@ -15,6 +15,8 @@
  */
 package com.embabel.vaadin.component;
 
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Span;
@@ -23,6 +25,7 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Section displaying registered actions from the agent platform.
@@ -43,6 +46,10 @@ public class ActionsSection extends VerticalLayout {
     ) {}
 
     public ActionsSection(List<ActionInfo> actions) {
+        this(actions, null);
+    }
+
+    public ActionsSection(List<ActionInfo> actions, Consumer<ActionInfo> onRun) {
         setPadding(true);
         setSpacing(true);
 
@@ -58,7 +65,7 @@ public class ActionsSection extends VerticalLayout {
         }
 
         for (var action : actions) {
-            add(createActionCard(action));
+            add(createActionCard(action, onRun));
         }
     }
 
@@ -67,6 +74,14 @@ public class ActionsSection extends VerticalLayout {
      * by other components (e.g., AgentsSection expansion).
      */
     public static Div createActionCard(ActionInfo action) {
+        return createActionCard(action, null);
+    }
+
+    /**
+     * Create a card for a single action with an optional run callback.
+     * When {@code onRun} is non-null, a "Run" button is added to the card.
+     */
+    public static Div createActionCard(ActionInfo action, Consumer<ActionInfo> onRun) {
         var card = new Div();
         card.addClassName("action-card");
 
@@ -120,6 +135,14 @@ public class ActionsSection extends VerticalLayout {
             var flag = new Span("read-only");
             flag.addClassName("action-flag");
             badgesLine.add(flag);
+        }
+
+        // Run button
+        if (onRun != null) {
+            var runButton = new Button("Run");
+            runButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_PRIMARY);
+            runButton.addClickListener(e -> onRun.accept(action));
+            badgesLine.add(runButton);
         }
 
         card.add(badgesLine);
