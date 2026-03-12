@@ -943,6 +943,7 @@ vaadin-login-form-wrapper::part(form-title) {
   color: var(--sb-heading, var(--sb-text-primary));
   font-weight: 600;
   font-size: var(--lumo-font-size-m);
+  font-family: monospace;
 }
 
 .api-card-desc {
@@ -950,6 +951,15 @@ vaadin-login-form-wrapper::part(form-title) {
   color: var(--sb-text-secondary);
   font-size: var(--lumo-font-size-s);
   margin-top: var(--lumo-space-xs);
+}
+
+.api-card-url {
+  display: block;
+  color: var(--sb-accent-light);
+  font-size: var(--lumo-font-size-xs);
+  font-family: monospace;
+  margin-top: var(--lumo-space-xs);
+  word-break: break-all;
 }
 
 .api-card-auth {

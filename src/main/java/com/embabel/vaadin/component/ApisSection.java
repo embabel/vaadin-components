@@ -15,22 +15,25 @@
  */
 package com.embabel.vaadin.component;
 
-import com.embabel.agent.api.client.AuthRequirement;
-import com.embabel.agent.api.client.LearnedApi;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
- * Section displaying loaded APIs with name, description, and auth info.
+ * Section displaying loaded APIs with name, description, spec URL, and auth info.
  */
 public class ApisSection extends VerticalLayout {
 
-    public ApisSection(List<LearnedApi> apis) {
+    /**
+     * Generic API info for display purposes.
+     */
+    public record ApiInfo(String name, String description, String specUrl, String auth) {
+    }
+
+    public ApisSection(List<ApiInfo> apis) {
         setPadding(true);
         setSpacing(true);
 
@@ -50,47 +53,30 @@ public class ApisSection extends VerticalLayout {
         }
     }
 
-    private Div createApiCard(LearnedApi api) {
+    private Div createApiCard(ApiInfo api) {
         var card = new Div();
         card.addClassName("api-card");
 
-        var name = new Span(api.getName());
+        var name = new Span(api.name());
         name.addClassName("api-card-name");
         card.add(name);
 
-        var description = api.getDescription();
-        if (description != null && !description.isBlank()) {
-            var desc = new Span(description);
+        if (api.description() != null && !api.description().isBlank()) {
+            var desc = new Span(api.description());
             desc.addClassName("api-card-desc");
             card.add(desc);
         }
 
-        var authInfo = formatAuth(api.getAuthRequirements());
-        if (!authInfo.isBlank()) {
-            var auth = new Span(authInfo);
+        var url = new Span(api.specUrl());
+        url.addClassName("api-card-url");
+        card.add(url);
+
+        if (api.auth() != null && !api.auth().isBlank()) {
+            var auth = new Span(api.auth());
             auth.addClassName("api-card-auth");
             card.add(auth);
         }
 
         return card;
-    }
-
-    private String formatAuth(List<AuthRequirement> requirements) {
-        return requirements.stream()
-                .filter(r -> !(r instanceof AuthRequirement.None))
-                .map(this::formatRequirement)
-                .collect(Collectors.joining(", "));
-    }
-
-    private String formatRequirement(AuthRequirement requirement) {
-        if (requirement instanceof AuthRequirement.ApiKey apiKey) {
-            return "API Key: " + apiKey.getName() + " (" + apiKey.getLocation() + ")";
-        } else if (requirement instanceof AuthRequirement.Bearer bearer) {
-            return "Bearer (" + bearer.getScheme() + ")";
-        } else if (requirement instanceof AuthRequirement.OAuth2 oauth2) {
-            var scopes = oauth2.getScopes();
-            return scopes.isEmpty() ? "OAuth2" : "OAuth2 [" + String.join(", ", scopes) + "]";
-        }
-        return requirement.toString();
     }
 }
