@@ -48,6 +48,7 @@ public class ItemPickerField extends Div {
 
         triggerButton = new Button(formatLabel(0));
         triggerButton.addClassName("item-picker-trigger");
+        triggerButton.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
         triggerButton.addClickListener(e -> openDialog());
         add(triggerButton);
     }
@@ -70,8 +71,6 @@ public class ItemPickerField extends Div {
         itemList.setPadding(false);
         itemList.setSpacing(false);
         itemList.addClassName("item-picker-list");
-        itemList.getStyle().set("overflow-y", "auto");
-        itemList.getStyle().set("max-height", "60vh");
 
         // Working copy of selections so Cancel discards changes
         var workingSelection = new LinkedHashSet<>(selected);
@@ -144,25 +143,14 @@ public class ItemPickerField extends Div {
         private static Div createRow(Item option) {
             var name = new Span(option.name());
             name.addClassName("item-picker-name");
-            name.getStyle().set("font-weight", "600");
 
             var desc = new Span(option.description());
             desc.addClassName("item-picker-desc");
-            desc.getStyle().set("font-size", "var(--lumo-font-size-s)");
-            desc.getStyle().set("color", "var(--lumo-secondary-text-color)");
 
             var textBlock = new Div(name, desc);
-            textBlock.getStyle().set("display", "flex");
-            textBlock.getStyle().set("flex-direction", "column");
-            textBlock.getStyle().set("flex", "1");
 
             var row = new Div();
             row.addClassName("item-picker-row");
-            row.getStyle().set("display", "flex");
-            row.getStyle().set("align-items", "center");
-            row.getStyle().set("gap", "var(--lumo-space-s)");
-            row.getStyle().set("padding", "var(--lumo-space-xs) 0");
-            row.getStyle().set("border-bottom", "1px solid var(--lumo-contrast-10pct)");
             row.add(textBlock);
             return row;
         }

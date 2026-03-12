@@ -494,6 +494,36 @@ vaadin-login-form-wrapper::part(form-title) {
   color: var(--sb-heading, var(--sb-text-primary));
 }
 
+/* ===== Item Picker ===== */
+
+.item-picker-list {
+  overflow-y: auto;
+  max-height: 60vh;
+}
+
+.item-picker-row {
+  display: flex;
+  align-items: center;
+  gap: var(--lumo-space-s);
+  padding: var(--lumo-space-xs) 0;
+  border-bottom: 1px solid var(--lumo-contrast-10pct);
+}
+
+.item-picker-row > div {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.item-picker-name {
+  font-weight: 600;
+}
+
+.item-picker-desc {
+  font-size: var(--lumo-font-size-s);
+  color: var(--lumo-secondary-text-color);
+}
+
 /* ===== User Section ===== */
 
 .profile-chip {
@@ -999,6 +1029,10 @@ vaadin-login-form-wrapper::part(form-title) {
   color: var(--sb-heading, var(--sb-text-primary));
   font-weight: 600;
   font-size: var(--lumo-font-size-m);
+}
+
+.domain-type-name-dynamic {
+  font-style: italic;
 }
 
 .domain-type-props-badge {

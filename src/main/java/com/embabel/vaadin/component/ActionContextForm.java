@@ -70,7 +70,7 @@ public class ActionContextForm extends VerticalLayout {
         setSpacing(true);
 
         // Action name
-        nameField = new TextField("Action name");
+        nameField = new TextField("Name");
         nameField.setWidthFull();
         nameField.setPlaceholder("e.g., summarize-order");
         add(nameField);

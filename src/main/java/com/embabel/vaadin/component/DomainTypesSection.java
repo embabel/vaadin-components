@@ -74,7 +74,7 @@ public class DomainTypesSection extends VerticalLayout {
         var nameSpan = new Span(type.getOwnLabel());
         nameSpan.addClassName("domain-type-name");
         if (isDynamic) {
-            nameSpan.getStyle().set("font-style", "italic");
+            nameSpan.addClassName("domain-type-name-dynamic");
         }
         summaryLayout.add(nameSpan);
 
