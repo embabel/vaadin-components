@@ -15,7 +15,6 @@
  */
 package com.embabel.vaadin.component;
 
-import com.vaadin.flow.component.checkbox.CheckboxGroup;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.combobox.MultiSelectComboBox;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -24,6 +23,7 @@ import com.vaadin.flow.component.textfield.TextField;
 
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Reusable form for defining an action's context: name, description,
@@ -58,8 +58,8 @@ public class ActionContextForm extends VerticalLayout {
     private final TextArea descriptionField;
     private final MultiSelectComboBox<String> inputTypes;
     private final ComboBox<String> outputType;
-    private final CheckboxGroup<String> toolGroup;
-    private final CheckboxGroup<String> refGroup;
+    private final ItemPickerField toolPicker;
+    private final ItemPickerField refPicker;
 
     public ActionContextForm(
             List<AvailableTool> availableTools,
@@ -99,22 +99,26 @@ public class ActionContextForm extends VerticalLayout {
 
         // Tools
         if (!availableTools.isEmpty()) {
-            toolGroup = new CheckboxGroup<>("Tools");
-            toolGroup.setItems(availableTools.stream().map(AvailableTool::name).toList());
-            toolGroup.addClassName("action-context-tools");
-            add(toolGroup);
+            var toolOptions = availableTools.stream()
+                    .map(t -> new ItemPickerField.Item(t.name(), t.description()))
+                    .collect(Collectors.toList());
+            toolPicker = new ItemPickerField("Tools", toolOptions);
+            toolPicker.addClassName("action-context-tools");
+            add(toolPicker);
         } else {
-            toolGroup = null;
+            toolPicker = null;
         }
 
         // References (skills)
         if (!availableReferences.isEmpty()) {
-            refGroup = new CheckboxGroup<>("Skills / References");
-            refGroup.setItems(availableReferences.stream().map(AvailableReference::name).toList());
-            refGroup.addClassName("action-context-refs");
-            add(refGroup);
+            var refOptions = availableReferences.stream()
+                    .map(r -> new ItemPickerField.Item(r.name(), r.description()))
+                    .collect(Collectors.toList());
+            refPicker = new ItemPickerField("Skills", refOptions);
+            refPicker.addClassName("action-context-refs");
+            add(refPicker);
         } else {
-            refGroup = null;
+            refPicker = null;
         }
     }
 
@@ -127,8 +131,8 @@ public class ActionContextForm extends VerticalLayout {
                 descriptionField.getValue().trim(),
                 inputTypes.getValue(),
                 outputType.getValue(),
-                toolGroup != null ? toolGroup.getValue().stream().toList() : List.of(),
-                refGroup != null ? refGroup.getValue().stream().toList() : List.of()
+                toolPicker != null ? toolPicker.getValue().stream().toList() : List.of(),
+                refPicker != null ? refPicker.getValue().stream().toList() : List.of()
         );
     }
 
@@ -149,8 +153,8 @@ public class ActionContextForm extends VerticalLayout {
         descriptionField.clear();
         inputTypes.clear();
         outputType.clear();
-        if (toolGroup != null) toolGroup.clear();
-        if (refGroup != null) refGroup.clear();
+        if (toolPicker != null) toolPicker.clear();
+        if (refPicker != null) refPicker.clear();
     }
 
     public String getActionName() {
