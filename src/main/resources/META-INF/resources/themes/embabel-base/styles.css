@@ -974,6 +974,36 @@ vaadin-login-form-wrapper::part(form-title) {
   font-family: monospace;
 }
 
+.api-learn-result {
+  background: var(--sb-bg-light);
+  border: 1px solid var(--sb-accent);
+  border-radius: var(--lumo-border-radius-m);
+  padding: var(--lumo-space-m);
+  margin-bottom: var(--lumo-space-s);
+}
+
+.api-learn-status {
+  display: block;
+  color: var(--sb-text-muted);
+  font-size: var(--lumo-font-size-s);
+  font-style: italic;
+}
+
+.api-learn-error {
+  display: block;
+  color: var(--sb-error);
+  font-size: var(--lumo-font-size-s);
+  word-break: break-word;
+}
+
+.api-learn-auth-info {
+  display: block;
+  color: var(--sb-text-muted);
+  font-size: var(--lumo-font-size-s);
+  margin-top: var(--lumo-space-xs);
+  font-style: italic;
+}
+
 /* ===== MCP Card ===== */
 
 .mcp-card {
