@@ -55,11 +55,12 @@ public class ApisSection extends VerticalLayout {
     /**
      * Request to save a new API entry.
      */
-    public record SaveRequest(String specUrl, String auth, String tokenEnv) {
+    public record SaveRequest(String specUrl, String apiType, String auth, String tokenEnv) {
     }
 
     private final VerticalLayout cardsLayout = new VerticalLayout();
     private final VerticalLayout formArea = new VerticalLayout();
+    private String selectedApiType = "openapi";
 
     public ApisSection(
             List<ApiInfo> apis,
@@ -98,16 +99,29 @@ public class ApisSection extends VerticalLayout {
     private void buildStep1Form(Function<String, LearnResult> onLearn, Consumer<SaveRequest> onSave) {
         formArea.removeAll();
 
+        var typeCombo = new ComboBox<String>("Type");
+        typeCombo.setItems("openapi", "graphql");
+        typeCombo.setValue("openapi");
+        typeCombo.setWidth("130px");
+
         var urlField = new TextField();
         urlField.setPlaceholder("OpenAPI spec URL");
         urlField.setWidthFull();
         urlField.setClearButtonVisible(true);
         urlField.addClassName("api-learn-url");
 
+        typeCombo.addValueChangeListener(e -> {
+            if ("graphql".equals(e.getValue())) {
+                urlField.setPlaceholder("GraphQL endpoint URL");
+            } else {
+                urlField.setPlaceholder("OpenAPI spec URL");
+            }
+        });
+
         var learnButton = new Button("Learn", VaadinIcon.SEARCH.create());
         learnButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
 
-        var row = new HorizontalLayout(urlField, learnButton);
+        var row = new HorizontalLayout(typeCombo, urlField, learnButton);
         row.setWidthFull();
         row.setAlignItems(FlexComponent.Alignment.BASELINE);
         row.setFlexGrow(1.0, urlField);
@@ -123,6 +137,7 @@ public class ApisSection extends VerticalLayout {
                 return;
             }
             urlField.setInvalid(false);
+            selectedApiType = typeCombo.getValue();
             learnApi(url.trim(), onLearn, onSave);
         });
     }
@@ -250,7 +265,7 @@ public class ApisSection extends VerticalLayout {
                 return;
             }
             try {
-                onSave.accept(new SaveRequest(url, auth, auth.equals("none") ? null : tokenEnv.trim()));
+                onSave.accept(new SaveRequest(url, selectedApiType, auth, auth.equals("none") ? null : tokenEnv.trim()));
                 Notification.show("API saved — refresh workspace to activate",
                         3000, Notification.Position.BOTTOM_START)
                         .addThemeVariants(NotificationVariant.LUMO_SUCCESS);

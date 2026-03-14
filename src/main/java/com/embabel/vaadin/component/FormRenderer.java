@@ -17,12 +17,16 @@ package com.embabel.vaadin.component;
 
 import com.embabel.ux.form.*;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.Key;
+import com.vaadin.flow.component.ShortcutRegistration;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.html.H3;
+import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
 import com.vaadin.flow.component.textfield.IntegerField;
@@ -57,7 +61,16 @@ public class FormRenderer extends VerticalLayout {
      * @param form       the UX-independent form definition
      * @param onSubmit   callback invoked with the collected {@link FormSubmission}
      */
-    public FormRenderer(Form form, Consumer<FormSubmission> onSubmit) {
+    private ShortcutRegistration escapeShortcut;
+
+    /**
+     * Create a form renderer with submit and dismiss support.
+     *
+     * @param form       the UX-independent form definition
+     * @param onSubmit   callback invoked with the collected {@link FormSubmission}
+     * @param onDismiss  callback invoked when the user dismisses the form (may be null)
+     */
+    public FormRenderer(Form form, Consumer<FormSubmission> onSubmit, Runnable onDismiss) {
         this.form = form;
         setPadding(true);
         setSpacing(true);
@@ -67,20 +80,66 @@ public class FormRenderer extends VerticalLayout {
 
         for (Control control : form.getControls()) {
             if (control instanceof com.embabel.ux.form.Button buttonDef) {
-                var button = new Button(buttonDef.getLabel());
-                button.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-                button.addClassName("awaitable-form-submit");
-                button.addClickListener(e -> {
+                var submitButton = new Button(buttonDef.getLabel());
+                submitButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+                submitButton.addClassName("awaitable-form-submit");
+
+                var dismissButton = new Button("Dismiss");
+                dismissButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+                dismissButton.addClassName("awaitable-form-dismiss");
+
+                submitButton.addClickListener(e -> {
+                    submitButton.setEnabled(false);
+                    dismissButton.setEnabled(false);
                     var submission = collectSubmission();
                     onSubmit.accept(submission);
+                    removeEscapeShortcut();
                 });
-                add(button);
+
+                dismissButton.addClickListener(e -> dismiss(onDismiss));
+
+                var buttons = new HorizontalLayout(submitButton, dismissButton);
+                buttons.setSpacing(true);
+                add(buttons);
             } else {
                 var component = renderControl(control);
                 if (component != null) {
                     add(component);
                 }
             }
+        }
+
+        // Escape key dismisses the form
+        addAttachListener(e ->
+            escapeShortcut = e.getUI().addShortcutListener(
+                event -> dismiss(onDismiss), Key.ESCAPE
+            )
+        );
+        addDetachListener(e -> removeEscapeShortcut());
+    }
+
+    /**
+     * Create a form renderer (back-compatible constructor without dismiss).
+     */
+    public FormRenderer(Form form, Consumer<FormSubmission> onSubmit) {
+        this(form, onSubmit, null);
+    }
+
+    private void dismiss(Runnable onDismiss) {
+        removeEscapeShortcut();
+        removeAll();
+        var badge = new Span("Dismissed");
+        badge.addClassName("awaitable-outcome-rejected");
+        add(badge);
+        if (onDismiss != null) {
+            onDismiss.run();
+        }
+    }
+
+    private void removeEscapeShortcut() {
+        if (escapeShortcut != null) {
+            escapeShortcut.remove();
+            escapeShortcut = null;
         }
     }
 

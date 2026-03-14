@@ -19,6 +19,8 @@ import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.hitl.*;
 import com.embabel.ux.form.FormSubmission;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.Key;
+import com.vaadin.flow.component.ShortcutRegistration;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
@@ -147,8 +149,33 @@ public class AwaitableRenderer extends Div {
             onCompleted.accept(impact);
         });
 
-        buttons.add(acceptButton, rejectButton);
+        var dismissButton = new Button("Dismiss");
+        dismissButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        dismissButton.addClassName("awaitable-dismiss");
+        dismissButton.addClickListener(e -> {
+            acceptButton.setEnabled(false);
+            rejectButton.setEnabled(false);
+            dismissButton.setEnabled(false);
+            showDismissed(layout);
+        });
+
+        buttons.add(acceptButton, rejectButton, dismissButton);
         layout.add(buttons);
+
+        // Escape key dismisses
+        final ShortcutRegistration[] escRef = {null};
+        layout.addAttachListener(e ->
+            escRef[0] = e.getUI().addShortcutListener(event -> {
+                acceptButton.setEnabled(false);
+                rejectButton.setEnabled(false);
+                dismissButton.setEnabled(false);
+                showDismissed(layout);
+                if (escRef[0] != null) escRef[0].remove();
+            }, Key.ESCAPE)
+        );
+        layout.addDetachListener(e -> {
+            if (escRef[0] != null) escRef[0].remove();
+        });
 
         return layout;
     }
@@ -198,6 +225,12 @@ public class AwaitableRenderer extends Div {
     private void showOutcome(VerticalLayout layout, boolean accepted) {
         var badge = new Span(accepted ? "\u2713 Accepted" : "\u2717 Rejected");
         badge.addClassName(accepted ? "awaitable-outcome-accepted" : "awaitable-outcome-rejected");
+        layout.add(badge);
+    }
+
+    private void showDismissed(VerticalLayout layout) {
+        var badge = new Span("Dismissed");
+        badge.addClassName("awaitable-outcome-rejected");
         layout.add(badge);
     }
 }
