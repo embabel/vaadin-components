@@ -62,11 +62,23 @@ public class ApisSection extends VerticalLayout {
     private final VerticalLayout formArea = new VerticalLayout();
     private String selectedApiType = "openapi";
 
+    private Consumer<String> onDelete;
+
     public ApisSection(
             List<ApiInfo> apis,
             Function<String, LearnResult> onLearn,
             Consumer<SaveRequest> onSave
     ) {
+        this(apis, onLearn, onSave, null);
+    }
+
+    public ApisSection(
+            List<ApiInfo> apis,
+            Function<String, LearnResult> onLearn,
+            Consumer<SaveRequest> onSave,
+            Consumer<String> onDelete
+    ) {
+        this.onDelete = onDelete;
         setPadding(true);
         setSpacing(true);
 
@@ -282,9 +294,23 @@ public class ApisSection extends VerticalLayout {
         var card = new Div();
         card.addClassName("api-card");
 
+        var header = new HorizontalLayout();
+        header.setWidthFull();
+        header.setAlignItems(FlexComponent.Alignment.CENTER);
+
         var name = new Span(api.name());
         name.addClassName("api-card-name");
-        card.add(name);
+        header.add(name);
+        header.setFlexGrow(1, name);
+
+        if (onDelete != null) {
+            var deleteBtn = new Button("Remove");
+            deleteBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_TERTIARY);
+            deleteBtn.addClickListener(e -> onDelete.accept(api.name()));
+            header.add(deleteBtn);
+        }
+
+        card.add(header);
 
         if (api.description() != null && !api.description().isBlank()) {
             var desc = new Span(api.description());

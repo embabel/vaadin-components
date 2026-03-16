@@ -15,12 +15,17 @@
  */
 package com.embabel.vaadin.component;
 
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Section displaying loaded MCP servers with name, description, and tool count.
@@ -35,6 +40,10 @@ public class McpSection extends VerticalLayout {
     }
 
     public McpSection(List<McpServerInfo> servers) {
+        this(servers, null);
+    }
+
+    public McpSection(List<McpServerInfo> servers, Consumer<String> onDelete) {
         setPadding(true);
         setSpacing(true);
 
@@ -50,17 +59,31 @@ public class McpSection extends VerticalLayout {
         }
 
         for (var server : servers) {
-            add(createServerCard(server));
+            add(createServerCard(server, onDelete));
         }
     }
 
-    private Div createServerCard(McpServerInfo server) {
+    private Div createServerCard(McpServerInfo server, Consumer<String> onDelete) {
         var card = new Div();
         card.addClassName("mcp-card");
 
+        var header = new HorizontalLayout();
+        header.setWidthFull();
+        header.setAlignItems(FlexComponent.Alignment.CENTER);
+
         var name = new Span(server.name());
         name.addClassName("mcp-card-name");
-        card.add(name);
+        header.add(name);
+        header.setFlexGrow(1, name);
+
+        if (onDelete != null) {
+            var deleteBtn = new Button("Remove");
+            deleteBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_TERTIARY);
+            deleteBtn.addClickListener(e -> onDelete.accept(server.name()));
+            header.add(deleteBtn);
+        }
+
+        card.add(header);
 
         if (server.description() != null && !server.description().isBlank()) {
             var desc = new Span(server.description());

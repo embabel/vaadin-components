@@ -15,12 +15,17 @@
  */
 package com.embabel.vaadin.component;
 
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Section displaying loaded skills with name and description.
@@ -35,6 +40,10 @@ public class SkillsSection extends VerticalLayout {
     }
 
     public SkillsSection(List<SkillInfo> skills) {
+        this(skills, null);
+    }
+
+    public SkillsSection(List<SkillInfo> skills, Consumer<String> onDelete) {
         setPadding(true);
         setSpacing(true);
 
@@ -50,17 +59,31 @@ public class SkillsSection extends VerticalLayout {
         }
 
         for (var skill : skills) {
-            add(createSkillCard(skill));
+            add(createSkillCard(skill, onDelete));
         }
     }
 
-    private Div createSkillCard(SkillInfo skill) {
+    private Div createSkillCard(SkillInfo skill, Consumer<String> onDelete) {
         var card = new Div();
         card.addClassName("skill-card");
 
+        var header = new HorizontalLayout();
+        header.setWidthFull();
+        header.setAlignItems(FlexComponent.Alignment.CENTER);
+
         var name = new Span(skill.name());
         name.addClassName("skill-card-name");
-        card.add(name);
+        header.add(name);
+        header.setFlexGrow(1, name);
+
+        if (onDelete != null) {
+            var deleteBtn = new Button("Remove");
+            deleteBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_TERTIARY);
+            deleteBtn.addClickListener(e -> onDelete.accept(skill.name()));
+            header.add(deleteBtn);
+        }
+
+        card.add(header);
 
         if (skill.description() != null && !skill.description().isBlank()) {
             var desc = new Span(skill.description());
