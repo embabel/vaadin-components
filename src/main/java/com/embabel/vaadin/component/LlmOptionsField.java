@@ -30,28 +30,49 @@ import java.util.List;
  * Provides a model dropdown populated with available LLM names from the platform,
  * and a temperature control defaulting to 0.0.
  * <p>
- * The value is exposed as an {@link LlmSelection} record.
+ * Models can be provided as plain names or as {@link ModelOption} records that
+ * include the provider name for display (e.g. "gpt-4.1-mini (OpenAI)").
+ * <p>
+ * The value is exposed as an {@link LlmSelection} record. {@link #getModel()}
+ * always returns the raw model name without the provider suffix.
  */
 public class LlmOptionsField extends VerticalLayout {
 
     /**
+     * A model option with name and provider for display.
+     *
+     * @param name     the model name (e.g. "gpt-4.1-mini")
+     * @param provider the provider name (e.g. "OpenAI")
+     */
+    public record ModelOption(String name, String provider) {
+        /**
+         * Display label shown in the dropdown.
+         */
+        public String displayName() {
+            return provider != null && !provider.isBlank()
+                    ? name + " (" + provider + ")"
+                    : name;
+        }
+    }
+
+    /**
      * The selected LLM configuration.
      *
-     * @param model    the selected model name, or null for platform default
+     * @param model       the selected model name, or null for platform default
      * @param temperature the temperature setting (0.0 = deterministic)
      */
     public record LlmSelection(String model, double temperature) {}
 
-    private final ComboBox<String> modelCombo;
+    private final ComboBox<ModelOption> modelCombo;
     private final NumberField temperatureField;
 
     /**
-     * Create an LLM options field.
+     * Create an LLM options field with model names and providers.
      *
-     * @param availableModels list of available LLM model names from the platform
+     * @param availableModels list of available models with provider info
      * @param defaultModel    the platform's default model name (pre-selected)
      */
-    public LlmOptionsField(List<String> availableModels, String defaultModel) {
+    public LlmOptionsField(List<ModelOption> availableModels, String defaultModel) {
         setPadding(false);
         setSpacing(false);
 
@@ -60,11 +81,15 @@ public class LlmOptionsField extends VerticalLayout {
 
         modelCombo = new ComboBox<>();
         modelCombo.setItems(availableModels);
+        modelCombo.setItemLabelGenerator(ModelOption::displayName);
         modelCombo.setPlaceholder("Platform default");
         modelCombo.setClearButtonVisible(true);
-        modelCombo.setWidth("220px");
-        if (defaultModel != null && availableModels.contains(defaultModel)) {
-            modelCombo.setValue(defaultModel);
+        modelCombo.setWidth("280px");
+        if (defaultModel != null) {
+            availableModels.stream()
+                    .filter(m -> m.name().equals(defaultModel))
+                    .findFirst()
+                    .ifPresent(modelCombo::setValue);
         }
 
         temperatureField = new NumberField();
@@ -85,10 +110,24 @@ public class LlmOptionsField extends VerticalLayout {
     }
 
     /**
+     * Convenience constructor for plain model name strings (no provider info).
+     *
+     * @param availableModels list of available LLM model names
+     * @param defaultModel    the platform's default model name (pre-selected)
+     */
+    public static LlmOptionsField fromNames(List<String> availableModels, String defaultModel) {
+        var options = availableModels.stream()
+                .map(name -> new ModelOption(name, ""))
+                .toList();
+        return new LlmOptionsField(options, defaultModel);
+    }
+
+    /**
      * Get the current LLM selection.
      */
     public LlmSelection getValue() {
-        var model = modelCombo.getValue();
+        var selected = modelCombo.getValue();
+        var model = selected != null ? selected.name() : null;
         var temp = temperatureField.getValue();
         return new LlmSelection(model, temp != null ? temp : 0.0);
     }
@@ -97,7 +136,8 @@ public class LlmOptionsField extends VerticalLayout {
      * Get the selected model name, or null for platform default.
      */
     public String getModel() {
-        return modelCombo.getValue();
+        var selected = modelCombo.getValue();
+        return selected != null ? selected.name() : null;
     }
 
     /**
