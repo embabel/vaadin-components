@@ -46,8 +46,6 @@ public class MemorySection extends VerticalLayout {
 
     private static final Logger logger = LoggerFactory.getLogger(MemorySection.class);
 
-    private final PropositionRepository propositionRepository;
-    private final Supplier<String> contextIdSupplier;
     private final PropositionsPanel propositionsPanel;
 
     public record RememberRequest(InputStream inputStream, String filename) {}
@@ -59,13 +57,11 @@ public class MemorySection extends VerticalLayout {
             Runnable onAnalyze,
             Consumer<RememberRequest> onRemember,
             Consumer<String> onClearContext) {
-        this.propositionRepository = propositionRepository;
-        this.contextIdSupplier = contextIdSupplier;
 
         // Create propositions panel early (referenced by button listeners)
         propositionsPanel = new PropositionsPanel(propositionRepository, entityResolver);
         propositionsPanel.setContextId(contextIdSupplier.get());
-        propositionsPanel.setOnDelete(id -> propositionRepository.delete(id));
+        propositionsPanel.setOnDelete(propositionRepository::delete);
 
         setPadding(true);
         setSpacing(true);

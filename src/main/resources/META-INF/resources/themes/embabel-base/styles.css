@@ -83,14 +83,23 @@ vaadin-vertical-layout {
   color: var(--sb-text-primary);
 }
 
+.chat-bubble-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--lumo-space-xs);
+  margin-bottom: var(--lumo-space-xs);
+}
 .chat-bubble-sender {
-  display: block;
   font-size: var(--lumo-font-size-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: var(--lumo-space-xs);
   opacity: 0.8;
+}
+.chat-bubble-timestamp {
+  font-size: var(--lumo-font-size-xxs);
+  opacity: 0.4;
+  font-weight: 400;
 }
 
 .chat-bubble-text {

@@ -44,18 +44,27 @@ public class ChatMessageBubble extends Div {
         messageDiv.addClassName("chat-bubble");
         messageDiv.addClassName(isUser ? "user" : "assistant");
 
+        var headerDiv = new Div();
+        headerDiv.addClassName("chat-bubble-header");
+
         var senderSpan = new Span(sender);
         senderSpan.addClassName("chat-bubble-sender");
+
+        var timestamp = new Span(java.time.LocalTime.now().format(
+                java.time.format.DateTimeFormatter.ofPattern("HH:mm")));
+        timestamp.addClassName("chat-bubble-timestamp");
+
+        headerDiv.add(senderSpan, timestamp);
 
         if (isUser) {
             var textSpan = new Span(text);
             textSpan.addClassName("chat-bubble-text");
-            messageDiv.add(senderSpan, textSpan);
+            messageDiv.add(headerDiv, textSpan);
         } else {
             var contentDiv = new Div();
             contentDiv.addClassName("chat-bubble-text");
             contentDiv.add(new Html("<div>" + renderMarkdown(text) + "</div>"));
-            messageDiv.add(senderSpan, contentDiv);
+            messageDiv.add(headerDiv, contentDiv);
         }
 
         add(messageDiv);
