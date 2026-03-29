@@ -108,6 +108,23 @@ public class ApisSection extends VerticalLayout {
         }
     }
 
+    /**
+     * Refresh the API cards with a new list.
+     * Call this after an API is added or removed via chat.
+     */
+    public void refreshCards(List<ApiInfo> apis) {
+        cardsLayout.removeAll();
+        if (apis.isEmpty()) {
+            var emptyLabel = new Span("No APIs loaded");
+            emptyLabel.addClassName("empty-list-label");
+            cardsLayout.add(emptyLabel);
+        } else {
+            for (var api : apis) {
+                cardsLayout.add(createApiCard(api));
+            }
+        }
+    }
+
     private void buildStep1Form(Function<String, LearnResult> onLearn, Consumer<SaveRequest> onSave) {
         formArea.removeAll();
 
