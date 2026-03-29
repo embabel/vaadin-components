@@ -104,6 +104,8 @@ vaadin-vertical-layout {
 
 .chat-bubble-text {
   line-height: 1.5;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 /* Markdown rendering in assistant messages */
