@@ -52,6 +52,9 @@ public class UsageBadge extends Div {
         modelSpan.getStyle().set("opacity", "0.7");
 
         add(tokensSpan, costSpan, modelSpan);
+        // Show initial state so the badge is visible from the start
+        tokensSpan.setText("0 tokens");
+        costSpan.setText("$0.00");
     }
 
     /**
