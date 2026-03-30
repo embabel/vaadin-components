@@ -187,21 +187,33 @@ public class AwaitableRenderer extends Div {
             Consumer<ResponseImpact> onCompleted
     ) {
         var form = request.getPayload(); // Form is the payload
-        return new FormRenderer(form, (FormSubmission submission) -> {
-            var response = new FormResponse(
-                    UUID.randomUUID().toString(),
-                    request.getId(),
-                    submission,
-                    false,
-                    Instant.now()
-            );
-            var impact = submitResponse(
-                    (Awaitable<Object, FormResponse>) (Awaitable<?, ?>) request,
-                    response,
-                    agentProcess
-            );
-            onCompleted.accept(impact);
+        var renderer = new FormRenderer(form, (FormSubmission submission) -> {
+            // Check for empty submissions — don't submit if all fields are blank
+            var allBlank = submission.getValues().values().stream()
+                    .allMatch(v -> v == null || v.toString().isBlank());
+            if (allBlank) {
+                logger.warn("Form submission rejected: all fields are empty");
+                return;
+            }
+            try {
+                var response = new FormResponse(
+                        UUID.randomUUID().toString(),
+                        request.getId(),
+                        submission,
+                        false,
+                        Instant.now()
+                );
+                var impact = submitResponse(
+                        (Awaitable<Object, FormResponse>) (Awaitable<?, ?>) request,
+                        response,
+                        agentProcess
+                );
+                onCompleted.accept(impact);
+            } catch (Exception e) {
+                logger.error("Form submission failed: {}", e.getMessage());
+            }
         });
+        return renderer;
     }
 
     @SuppressWarnings("unchecked")

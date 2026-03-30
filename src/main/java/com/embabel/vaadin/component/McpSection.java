@@ -91,7 +91,10 @@ public class McpSection extends VerticalLayout {
             card.add(desc);
         }
 
-        var toolCount = new Span(server.toolCount() + " tool" + (server.toolCount() != 1 ? "s" : ""));
+        var toolCountText = server.toolCount() > 0
+                ? server.toolCount() + " tool" + (server.toolCount() != 1 ? "s" : "")
+                : "Starts on first use";
+        var toolCount = new Span(toolCountText);
         toolCount.addClassName("mcp-card-tools");
         card.add(toolCount);
 
