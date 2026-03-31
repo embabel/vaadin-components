@@ -52,7 +52,7 @@ public class TranscriptButton extends Button {
         var plainText = buildPlainTranscript(conversation);
 
         var dialog = new Dialog();
-        dialog.setHeaderTitle("Conversation Transcript");
+        dialog.setHeaderTitle("Transcript");
         dialog.setWidth("600px");
         dialog.setHeight("500px");
         dialog.setResizable(true);
