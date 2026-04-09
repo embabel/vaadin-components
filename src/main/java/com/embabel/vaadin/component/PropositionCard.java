@@ -25,6 +25,7 @@ import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.textfield.TextArea;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -40,7 +41,10 @@ public class PropositionCard extends Div {
             DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
 
     private final Proposition proposition;
+    private final Button editButton;
+    private final Button deleteButton;
     private Consumer<Proposition> onDelete;
+    private Consumer<Proposition> onEdit;
     private final Function<String, NamedEntity> entityResolver;
 
     public PropositionCard(Proposition prop, Function<String, NamedEntity> entityResolver) {
@@ -56,7 +60,14 @@ public class PropositionCard extends Div {
         var textSpan = new Span(prop.getText());
         textSpan.addClassName("proposition-text");
 
-        var deleteButton = new Button(VaadinIcon.TRASH.create());
+        editButton = new Button(VaadinIcon.EDIT.create());
+        editButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+        editButton.addClassName("proposition-edit");
+        editButton.getElement().setAttribute("title", "Edit this memory");
+        editButton.addClickListener(e -> startEditing(textSpan, headerLayout));
+        editButton.setVisible(false);
+
+        deleteButton = new Button(VaadinIcon.TRASH.create());
         deleteButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ERROR);
         deleteButton.addClassName("proposition-delete");
         deleteButton.getElement().setAttribute("title", "Delete this memory");
@@ -65,8 +76,9 @@ public class PropositionCard extends Div {
                 onDelete.accept(proposition);
             }
         });
+        deleteButton.setVisible(false);
 
-        headerLayout.add(textSpan, deleteButton);
+        headerLayout.add(textSpan, editButton, deleteButton);
         headerLayout.setFlexGrow(1, textSpan);
 
         var metaLayout = new HorizontalLayout();
@@ -143,9 +155,60 @@ public class PropositionCard extends Div {
 
     public void setOnDelete(Consumer<Proposition> handler) {
         this.onDelete = handler;
+        deleteButton.setVisible(handler != null);
+    }
+
+    /**
+     * Set handler for editing. Called with the updated proposition (new text applied via copy).
+     */
+    public void setOnEdit(Consumer<Proposition> handler) {
+        this.onEdit = handler;
+        editButton.setVisible(handler != null);
     }
 
     public Proposition getProposition() {
         return proposition;
+    }
+
+    private void startEditing(Span textSpan, HorizontalLayout headerLayout) {
+        var editArea = new TextArea();
+        editArea.setValue(proposition.getText());
+        editArea.setWidthFull();
+        editArea.addClassName("proposition-edit-area");
+
+        var saveButton = new Button("Save", VaadinIcon.CHECK.create());
+        saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
+
+        var cancelButton = new Button("Cancel");
+        cancelButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+
+        var editButtons = new HorizontalLayout(saveButton, cancelButton);
+        editButtons.setSpacing(true);
+
+        // Replace the header with the edit area
+        var editContainer = new Div(editArea, editButtons);
+        editContainer.addClassName("proposition-edit-container");
+
+        var cardIndex = getElement().indexOfChild(headerLayout.getElement());
+        headerLayout.setVisible(false);
+        getElement().insertChild(cardIndex, editContainer.getElement());
+
+        saveButton.addClickListener(e -> {
+            var newText = editArea.getValue().trim();
+            if (!newText.isEmpty() && !newText.equals(proposition.getText())) {
+                var updated = proposition.withText(newText);
+                textSpan.setText(newText);
+                if (onEdit != null) {
+                    onEdit.accept(updated);
+                }
+            }
+            remove(editContainer);
+            headerLayout.setVisible(true);
+        });
+
+        cancelButton.addClickListener(e -> {
+            remove(editContainer);
+            headerLayout.setVisible(true);
+        });
     }
 }

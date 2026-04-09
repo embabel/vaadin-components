@@ -61,7 +61,11 @@ public class MemorySection extends VerticalLayout {
         // Create propositions panel early (referenced by button listeners)
         propositionsPanel = new PropositionsPanel(propositionRepository, entityResolver);
         propositionsPanel.setContextId(contextIdSupplier.get());
-        propositionsPanel.setOnDelete(propositionRepository::delete);
+        propositionsPanel.setOnDelete(id -> {
+            var deleted = propositionRepository.delete(id);
+            logger.info("Delete proposition {}: {}", id, deleted ? "success" : "not found");
+        });
+        propositionsPanel.setOnEdit(propositionRepository::save);
 
         setPadding(true);
         setSpacing(true);

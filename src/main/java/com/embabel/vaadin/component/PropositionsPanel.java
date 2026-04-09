@@ -47,6 +47,7 @@ public class PropositionsPanel extends VerticalLayout {
     private final Span propositionCountSpan;
     private final Button clusterToggle;
     private Consumer<String> onDelete;
+    private Consumer<Proposition> onEdit;
     private String contextId;
     private boolean clustered = false;
 
@@ -113,23 +114,40 @@ public class PropositionsPanel extends VerticalLayout {
     }
 
     /**
-     * Display a specific list of propositions (e.g., search results relevant to
-     * the current conversation). Bypasses the repository query and clustering.
+     * Display search results with relevance scores. Used by the memory drawer
+     * to show propositions relevant to the current conversation.
      */
-    public void showPropositions(List<Proposition> propositions) {
+    public void showScoredPropositions(List<SimilarityResult<Proposition>> results) {
         propositionsContent.removeAll();
-        propositionCountSpan.setText("(" + propositions.size() + " relevant)");
+        propositionCountSpan.setText("(" + results.size() + " relevant)");
         clusterToggle.setVisible(false);
 
-        if (propositions.isEmpty()) {
+        if (results.isEmpty()) {
             var emptyMessage = new Span("No relevant memories for this conversation.");
             emptyMessage.addClassName("panel-empty-message");
             propositionsContent.add(emptyMessage);
             return;
         }
 
-        for (var prop : propositions) {
-            propositionsContent.add(createCard(prop));
+        for (var result : results) {
+            var wrapper = new HorizontalLayout();
+            wrapper.setWidthFull();
+            wrapper.setAlignItems(Alignment.CENTER);
+            wrapper.setPadding(false);
+            wrapper.setSpacing(false);
+
+            var card = createCard(result.getMatch());
+
+            var scorePct = (int) Math.round(result.getScore() * 100);
+            var scoreBadge = new Span(scorePct + "%");
+            scoreBadge.addClassName("similarity-badge");
+            if (scorePct >= 90) scoreBadge.addClassName("score-high");
+            else if (scorePct >= 80) scoreBadge.addClassName("score-medium");
+            else scoreBadge.addClassName("score-low");
+
+            wrapper.add(card, scoreBadge);
+            wrapper.setFlexGrow(1, card);
+            propositionsContent.add(wrapper);
         }
     }
 
@@ -302,6 +320,9 @@ public class PropositionsPanel extends VerticalLayout {
                 refresh();
             });
         }
+        if (onEdit != null) {
+            card.setOnEdit(onEdit);
+        }
         return card;
     }
 
@@ -312,6 +333,10 @@ public class PropositionsPanel extends VerticalLayout {
 
     public void setOnDelete(Consumer<String> handler) {
         this.onDelete = handler;
+    }
+
+    public void setOnEdit(Consumer<Proposition> handler) {
+        this.onEdit = handler;
     }
 
     public void setContextId(String contextId) {
