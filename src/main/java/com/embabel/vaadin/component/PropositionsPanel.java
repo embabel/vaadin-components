@@ -112,6 +112,27 @@ public class PropositionsPanel extends VerticalLayout {
         }
     }
 
+    /**
+     * Display a specific list of propositions (e.g., search results relevant to
+     * the current conversation). Bypasses the repository query and clustering.
+     */
+    public void showPropositions(List<Proposition> propositions) {
+        propositionsContent.removeAll();
+        propositionCountSpan.setText("(" + propositions.size() + " relevant)");
+        clusterToggle.setVisible(false);
+
+        if (propositions.isEmpty()) {
+            var emptyMessage = new Span("No relevant memories for this conversation.");
+            emptyMessage.addClassName("panel-empty-message");
+            propositionsContent.add(emptyMessage);
+            return;
+        }
+
+        for (var prop : propositions) {
+            propositionsContent.add(createCard(prop));
+        }
+    }
+
     private void refreshFlat() {
         var propositions = contextId != null
                 ? propositionRepository.findByContextIdValue(contextId)
