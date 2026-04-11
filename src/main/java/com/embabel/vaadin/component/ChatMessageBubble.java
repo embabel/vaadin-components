@@ -20,10 +20,16 @@ import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import org.commonmark.Extension;
 import org.commonmark.ext.gfm.tables.TablesExtension;
+import org.commonmark.node.Link;
+import org.commonmark.node.Node;
 import org.commonmark.parser.Parser;
+import org.commonmark.renderer.html.AttributeProvider;
+import org.commonmark.renderer.html.AttributeProviderContext;
+import org.commonmark.renderer.html.AttributeProviderFactory;
 import org.commonmark.renderer.html.HtmlRenderer;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Chat message bubble component with sender name and text content.
@@ -34,7 +40,25 @@ public class ChatMessageBubble extends Div {
 
     private static final List<Extension> EXTENSIONS = List.of(TablesExtension.create());
     private static final Parser MARKDOWN_PARSER = Parser.builder().extensions(EXTENSIONS).build();
-    private static final HtmlRenderer HTML_RENDERER = HtmlRenderer.builder().extensions(EXTENSIONS).build();
+
+    /**
+     * Adds {@code target="_blank" rel="noopener noreferrer"} to every rendered link.
+     * Without this, Vaadin Flow's client-side router intercepts same-origin links
+     * (e.g. {@code /apps/foo.html}) and fails with "Could not navigate". Opening in
+     * a new tab forces the browser to make a normal HTTP request, so the link works.
+     */
+    private static final AttributeProviderFactory EXTERNAL_LINK_FACTORY =
+            (AttributeProviderContext context) -> (AttributeProvider) (Node node, String tagName, Map<String, String> attributes) -> {
+                if (node instanceof Link && "a".equals(tagName)) {
+                    attributes.put("target", "_blank");
+                    attributes.put("rel", "noopener noreferrer");
+                }
+            };
+
+    private static final HtmlRenderer HTML_RENDERER = HtmlRenderer.builder()
+            .extensions(EXTENSIONS)
+            .attributeProviderFactory(EXTERNAL_LINK_FACTORY)
+            .build();
 
     public ChatMessageBubble(String sender, String text, boolean isUser) {
         addClassName("chat-bubble-container");
