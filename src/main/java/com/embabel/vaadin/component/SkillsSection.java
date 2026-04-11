@@ -40,16 +40,35 @@ public class SkillsSection extends VerticalLayout {
     }
 
     public SkillsSection(List<SkillInfo> skills) {
-        this(skills, null);
+        this(skills, null, null);
     }
 
     public SkillsSection(List<SkillInfo> skills, Consumer<String> onDelete) {
+        this(skills, onDelete, null);
+    }
+
+    public SkillsSection(List<SkillInfo> skills, Consumer<String> onDelete, Runnable onRefreshGitHub) {
         setPadding(true);
         setSpacing(true);
 
+        var titleRow = new HorizontalLayout();
+        titleRow.setWidthFull();
+        titleRow.setAlignItems(FlexComponent.Alignment.CENTER);
+
         var title = new H4("Skills (" + skills.size() + ")");
         title.addClassName("section-title");
-        add(title);
+        titleRow.add(title);
+        titleRow.setFlexGrow(1, title);
+
+        if (onRefreshGitHub != null) {
+            var refreshBtn = new Button("Refresh");
+            refreshBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+            refreshBtn.addClassName("skills-refresh-btn");
+            refreshBtn.addClickListener(e -> onRefreshGitHub.run());
+            titleRow.add(refreshBtn);
+        }
+
+        add(titleRow);
 
         if (skills.isEmpty()) {
             var emptyLabel = new Span("No skills loaded");
