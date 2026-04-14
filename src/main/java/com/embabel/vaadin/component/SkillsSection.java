@@ -17,12 +17,15 @@ package com.embabel.vaadin.component;
 
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.TextArea;
+import com.vaadin.flow.component.textfield.TextField;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -47,7 +50,19 @@ public class SkillsSection extends VerticalLayout {
         this(skills, onDelete, null);
     }
 
+    /**
+     * Callback for creating a new skill.
+     */
+    public interface SkillCreateHandler {
+        void create(String name, String description, String instructions);
+    }
+
     public SkillsSection(List<SkillInfo> skills, Consumer<String> onDelete, Runnable onRefreshGitHub) {
+        this(skills, onDelete, onRefreshGitHub, null);
+    }
+
+    public SkillsSection(List<SkillInfo> skills, Consumer<String> onDelete, Runnable onRefreshGitHub,
+                          SkillCreateHandler onCreate) {
         setPadding(true);
         setSpacing(true);
 
@@ -59,6 +74,13 @@ public class SkillsSection extends VerticalLayout {
         title.addClassName("section-title");
         titleRow.add(title);
         titleRow.setFlexGrow(1, title);
+
+        if (onCreate != null) {
+            var createBtn = new Button("Create");
+            createBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_PRIMARY);
+            createBtn.addClickListener(e -> showCreateDialog(onCreate));
+            titleRow.add(createBtn);
+        }
 
         if (onRefreshGitHub != null) {
             var refreshBtn = new Button("Refresh");
@@ -80,6 +102,45 @@ public class SkillsSection extends VerticalLayout {
         for (var skill : skills) {
             add(createSkillCard(skill, onDelete));
         }
+    }
+
+    private void showCreateDialog(SkillCreateHandler onCreate) {
+        var dialog = new Dialog();
+        dialog.setHeaderTitle("Create Skill");
+        dialog.setWidth("500px");
+
+        var layout = new VerticalLayout();
+        layout.setPadding(false);
+        layout.setSpacing(true);
+
+        var nameField = new TextField("Name");
+        nameField.setPlaceholder("my-skill (lowercase, hyphens)");
+        nameField.setWidthFull();
+        nameField.setPattern("[a-z0-9][a-z0-9-]*[a-z0-9]");
+
+        var descField = new TextField("Description");
+        descField.setPlaceholder("What this skill does");
+        descField.setWidthFull();
+
+        var instructionsField = new TextArea("Instructions");
+        instructionsField.setPlaceholder("Detailed instructions for the assistant...");
+        instructionsField.setWidthFull();
+        instructionsField.setMinHeight("150px");
+
+        layout.add(nameField, descField, instructionsField);
+        dialog.add(layout);
+
+        var saveBtn = new Button("Create", e -> {
+            var name = nameField.getValue().trim();
+            var desc = descField.getValue().trim();
+            var instructions = instructionsField.getValue().trim();
+            if (name.isEmpty() || desc.isEmpty() || instructions.isEmpty()) return;
+            onCreate.create(name, desc, instructions);
+            dialog.close();
+        });
+        saveBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        dialog.getFooter().add(new Button("Cancel", e -> dialog.close()), saveBtn);
+        dialog.open();
     }
 
     private Div createSkillCard(SkillInfo skill, Consumer<String> onDelete) {
