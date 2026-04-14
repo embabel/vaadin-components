@@ -78,8 +78,8 @@ public class ActionContextForm extends VerticalLayout {
         // Description
         descriptionField = new TextArea("What should this action do?");
         descriptionField.setWidthFull();
-        descriptionField.setMinHeight("80px");
-        descriptionField.setPlaceholder("e.g., Summarize the order details and extract key fields");
+        descriptionField.addClassName("action-description-field");
+        descriptionField.setPlaceholder("e.g., Summarize the order details and extract key fields.\n\nBe as detailed as you like — the more context, the better the generated action.");
         add(descriptionField);
 
         // Input types
