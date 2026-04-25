@@ -101,6 +101,30 @@ vaadin-vertical-layout {
   opacity: 0.4;
   font-weight: 400;
 }
+.chat-bubble-copy-btn {
+  margin-left: auto;
+  min-width: 0;
+  padding: 0;
+  height: var(--lumo-icon-size-s);
+  width: var(--lumo-icon-size-s);
+  opacity: 0.35;
+  cursor: pointer;
+  color: inherit;
+  background: transparent;
+}
+.chat-bubble-copy-btn vaadin-icon {
+  width: var(--lumo-icon-size-s);
+  height: var(--lumo-icon-size-s);
+  color: inherit;
+}
+.chat-bubble:hover .chat-bubble-copy-btn,
+.chat-bubble-copy-btn:focus {
+  opacity: 0.85;
+}
+.chat-bubble-copy-btn:hover {
+  opacity: 1;
+  background: transparent;
+}
 
 .chat-bubble-text {
   line-height: 1.5;

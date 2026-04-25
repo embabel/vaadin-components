@@ -16,8 +16,11 @@
 package com.embabel.vaadin.component;
 
 import com.vaadin.flow.component.Html;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import org.commonmark.Extension;
 import org.commonmark.ext.gfm.tables.TablesExtension;
 import org.commonmark.node.Link;
@@ -78,7 +81,7 @@ public class ChatMessageBubble extends Div {
                 java.time.format.DateTimeFormatter.ofPattern("HH:mm")));
         timestamp.addClassName("chat-bubble-timestamp");
 
-        headerDiv.add(senderSpan, timestamp);
+        headerDiv.add(senderSpan, timestamp, copyButton(text));
 
         if (isUser) {
             var textSpan = new Span(text);
@@ -92,6 +95,26 @@ public class ChatMessageBubble extends Div {
         }
 
         add(messageDiv);
+    }
+
+    private static Button copyButton(String text) {
+        var button = new Button(VaadinIcon.COPY_O.create());
+        button.addClassName("chat-bubble-copy-btn");
+        button.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE, ButtonVariant.LUMO_SMALL);
+        button.getElement().setAttribute("title", "Copy message");
+        button.getElement().setAttribute("aria-label", "Copy message");
+        button.addClickListener(e -> button.getElement().executeJs(
+                """
+                navigator.clipboard.writeText($0);
+                const icon = this.querySelector('vaadin-icon');
+                if (icon) {
+                  const orig = icon.getAttribute('icon');
+                  icon.setAttribute('icon', 'vaadin:check');
+                  setTimeout(() => icon.setAttribute('icon', orig), 1200);
+                }
+                """,
+                text == null ? "" : text));
+        return button;
     }
 
     private static String renderMarkdown(String markdown) {
