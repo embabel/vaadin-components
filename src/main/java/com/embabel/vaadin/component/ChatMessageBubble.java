@@ -41,6 +41,13 @@ import java.util.Map;
  */
 public class ChatMessageBubble extends Div {
 
+    public enum Feedback { POSITIVE, NEGATIVE }
+
+    @FunctionalInterface
+    public interface FeedbackHandler {
+        void onFeedback(String messageText, Feedback feedback);
+    }
+
     private static final List<Extension> EXTENSIONS = List.of(TablesExtension.create());
     private static final Parser MARKDOWN_PARSER = Parser.builder().extensions(EXTENSIONS).build();
 
@@ -63,11 +70,16 @@ public class ChatMessageBubble extends Div {
             .attributeProviderFactory(EXTERNAL_LINK_FACTORY)
             .build();
 
+    private final String rawText;
+    private final Div bubbleDiv;
+
     public ChatMessageBubble(String sender, String text, boolean isUser) {
+        this.rawText = text == null ? "" : text;
         addClassName("chat-bubble-container");
         addClassName(isUser ? "user" : "assistant");
 
         var messageDiv = new Div();
+        this.bubbleDiv = messageDiv;
         messageDiv.addClassName("chat-bubble");
         messageDiv.addClassName(isUser ? "user" : "assistant");
 
@@ -95,6 +107,51 @@ public class ChatMessageBubble extends Div {
         }
 
         add(messageDiv);
+    }
+
+    /**
+     * Attach thumbs-up / thumbs-down feedback buttons to this bubble.
+     * No-op if {@code handler} is null. Returns {@code this} for chaining.
+     * Intended for assistant messages — calling on a user bubble works
+     * but is rarely meaningful.
+     */
+    public ChatMessageBubble withFeedback(FeedbackHandler handler) {
+        if (handler == null) return this;
+
+        var feedbackRow = new Div();
+        feedbackRow.addClassName("chat-bubble-feedback");
+
+        var up = feedbackButton(VaadinIcon.THUMBS_UP_O, "Good response");
+        var down = feedbackButton(VaadinIcon.THUMBS_DOWN_O, "Bad response");
+
+        up.addClickListener(e -> recordFeedback(handler, Feedback.POSITIVE, up, down));
+        down.addClickListener(e -> recordFeedback(handler, Feedback.NEGATIVE, up, down));
+
+        feedbackRow.add(up, down);
+        bubbleDiv.add(feedbackRow);
+        return this;
+    }
+
+    private void recordFeedback(FeedbackHandler handler, Feedback feedback, Button up, Button down) {
+        try {
+            handler.onFeedback(rawText, feedback);
+        } finally {
+            var picked = feedback == Feedback.POSITIVE ? up : down;
+            var other = feedback == Feedback.POSITIVE ? down : up;
+            picked.addClassName("chat-bubble-feedback-btn-selected");
+            up.setEnabled(false);
+            down.setEnabled(false);
+            other.getElement().getStyle().set("opacity", "0.25");
+        }
+    }
+
+    private static Button feedbackButton(VaadinIcon icon, String tooltip) {
+        var button = new Button(icon.create());
+        button.addClassName("chat-bubble-feedback-btn");
+        button.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE, ButtonVariant.LUMO_SMALL);
+        button.getElement().setAttribute("title", tooltip);
+        button.getElement().setAttribute("aria-label", tooltip);
+        return button;
     }
 
     private static Button copyButton(String text) {

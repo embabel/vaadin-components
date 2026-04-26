@@ -125,6 +125,40 @@ vaadin-vertical-layout {
   opacity: 1;
   background: transparent;
 }
+.chat-bubble-feedback {
+  display: flex;
+  gap: var(--lumo-space-xs);
+  margin-top: var(--lumo-space-s);
+  padding-top: var(--lumo-space-xs);
+  border-top: 1px solid var(--lumo-contrast-10pct);
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+}
+.chat-bubble:hover .chat-bubble-feedback {
+  opacity: 1;
+}
+.chat-bubble-feedback-btn {
+  min-width: 0;
+  padding: 0;
+  height: var(--lumo-icon-size-s);
+  width: var(--lumo-icon-size-s);
+  cursor: pointer;
+  color: inherit;
+  background: transparent;
+}
+.chat-bubble-feedback-btn vaadin-icon {
+  width: var(--lumo-icon-size-s);
+  height: var(--lumo-icon-size-s);
+  color: inherit;
+}
+.chat-bubble-feedback-btn:hover {
+  background: transparent;
+  opacity: 1;
+}
+.chat-bubble-feedback-btn-selected {
+  color: var(--lumo-primary-color);
+  opacity: 1 !important;
+}
 
 .chat-bubble-text {
   line-height: 1.5;
