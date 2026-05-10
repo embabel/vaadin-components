@@ -35,6 +35,11 @@ public class ActionsSection extends VerticalLayout {
 
     /**
      * Generic action info for display purposes.
+     *
+     * <p>{@code deletable} controls whether the section's delete affordance
+     * is shown for this entry. Caller decides what "deletable" means —
+     * typically "the user owns this action's YAML on disk" (workspace-
+     * direct actions), not pack-shipped or platform-defined ones.
      */
     public record ActionInfo(
             String name,
@@ -42,14 +47,45 @@ public class ActionsSection extends VerticalLayout {
             Set<String> inputTypes,
             Set<String> outputTypes,
             boolean canRerun,
-            boolean readOnly
-    ) {}
+            boolean readOnly,
+            boolean deletable
+    ) {
+        /**
+         * Back-compat constructor — defaults {@code deletable=false} so
+         * existing callers don't surface a delete button until they opt in.
+         */
+        public ActionInfo(
+                String name,
+                String description,
+                Set<String> inputTypes,
+                Set<String> outputTypes,
+                boolean canRerun,
+                boolean readOnly
+        ) {
+            this(name, description, inputTypes, outputTypes, canRerun, readOnly, false);
+        }
+    }
 
     public ActionsSection(List<ActionInfo> actions) {
-        this(actions, null);
+        this(actions, null, null);
     }
 
     public ActionsSection(List<ActionInfo> actions, Consumer<ActionInfo> onRun) {
+        this(actions, onRun, null);
+    }
+
+    /**
+     * Section variant with both a Run callback and a Delete callback.
+     * The Delete button shows only on cards whose
+     * {@link ActionInfo#deletable()} is {@code true} AND when
+     * {@code onDelete} is non-null. Caller is responsible for any
+     * confirm-before-delete UX.
+     */
+    public ActionsSection(
+            List<ActionInfo> actions,
+            Consumer<ActionInfo> onRun,
+            Consumer<ActionInfo> onDelete
+    ) {
         setPadding(true);
         setSpacing(true);
 
@@ -65,7 +101,7 @@ public class ActionsSection extends VerticalLayout {
         }
 
         for (var action : actions) {
-            add(createActionCard(action, onRun));
+            add(createActionCard(action, onRun, onDelete));
         }
     }
 
@@ -74,7 +110,7 @@ public class ActionsSection extends VerticalLayout {
      * by other components (e.g., AgentsSection expansion).
      */
     public static Div createActionCard(ActionInfo action) {
-        return createActionCard(action, null);
+        return createActionCard(action, null, null);
     }
 
     /**
@@ -82,6 +118,21 @@ public class ActionsSection extends VerticalLayout {
      * When {@code onRun} is non-null, a "Run" button is added to the card.
      */
     public static Div createActionCard(ActionInfo action, Consumer<ActionInfo> onRun) {
+        return createActionCard(action, onRun, null);
+    }
+
+    /**
+     * Card variant with optional Run and Delete callbacks. Delete is
+     * shown only when {@code action.deletable()} is true and
+     * {@code onDelete} is non-null — lets a single action listing mix
+     * deletable user-owned actions with non-deletable pack-shipped /
+     * platform-defined ones in one component.
+     */
+    public static Div createActionCard(
+            ActionInfo action,
+            Consumer<ActionInfo> onRun,
+            Consumer<ActionInfo> onDelete
+    ) {
         var card = new Div();
         card.addClassName("action-card");
 
@@ -143,6 +194,16 @@ public class ActionsSection extends VerticalLayout {
             runButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_PRIMARY);
             runButton.addClickListener(e -> onRun.accept(action));
             badgesLine.add(runButton);
+        }
+
+        // Delete button — only on deletable cards (user-owned actions).
+        // Caller's `onDelete` is responsible for any confirm-before-delete UX.
+        if (onDelete != null && action.deletable()) {
+            var deleteButton = new Button("Delete");
+            deleteButton.addClassName("action-card-delete");
+            deleteButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_TERTIARY);
+            deleteButton.addClickListener(e -> onDelete.accept(action));
+            badgesLine.add(deleteButton);
         }
 
         card.add(badgesLine);
