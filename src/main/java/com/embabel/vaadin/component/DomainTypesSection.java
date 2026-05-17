@@ -42,8 +42,14 @@ public class DomainTypesSection extends VerticalLayout {
         setPadding(true);
         setSpacing(true);
 
+        // Sort by the same identifier the row will render — dynamic types
+        // by full namespaced name (`gmail.thread`), JVM types by ownLabel
+        // (`AssistantUser`). Keeps the sort visually consistent with the
+        // displayed name.
         var types = domainTypes.stream()
-                .sorted(Comparator.comparing(DomainType::getOwnLabel, String.CASE_INSENSITIVE_ORDER))
+                .sorted(Comparator.comparing(
+                        t -> t instanceof DynamicType ? t.getName() : t.getOwnLabel(),
+                        String.CASE_INSENSITIVE_ORDER))
                 .toList();
 
         var title = new H4("Schema (" + types.size() + " types)");
@@ -71,7 +77,13 @@ public class DomainTypesSection extends VerticalLayout {
         summaryLayout.setSpacing(true);
         summaryLayout.setPadding(false);
 
-        var nameSpan = new Span(type.getOwnLabel());
+        // DynamicTypes carry dotted namespaces (`gmail.thread`,
+        // `github.pr_review_request`) that DomainType.ownLabel — designed
+        // for stripping JVM FQNs — would shred to `Thread` /
+        // `Pr_review_request`, collapsing every pack's namespace and
+        // hiding the contributor identity. Render the full name for
+        // DynamicType; ownLabel is still right for JvmType.
+        var nameSpan = new Span(isDynamic ? type.getName() : type.getOwnLabel());
         nameSpan.addClassName("domain-type-name");
         if (isDynamic) {
             nameSpan.addClassName("domain-type-name-dynamic");
