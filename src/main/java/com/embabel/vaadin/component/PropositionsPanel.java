@@ -21,6 +21,7 @@ import com.embabel.common.core.types.SimilarityResult;
 import com.embabel.dice.proposition.Proposition;
 import com.embabel.dice.proposition.PropositionQuery;
 import com.embabel.dice.proposition.PropositionRepository;
+import com.embabel.dice.proposition.PropositionStatus;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.details.Details;
@@ -29,10 +30,13 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.select.Select;
+import com.vaadin.flow.component.select.SelectVariant;
 
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -41,15 +45,35 @@ import java.util.function.Function;
  */
 public class PropositionsPanel extends VerticalLayout {
 
+    /**
+     * The memory views offered in the Memory-tab header. ALL carries an empty status set because
+     * dice treats that as "no status filter" — the way to surface STALE for audit.
+     */
+    private enum MemoryView {
+        ACTIVE("Active", Set.of(PropositionStatus.ACTIVE)),
+        ALL("All", Set.of()),
+        STALE("Stale", Set.of(PropositionStatus.STALE));
+
+        private final String label;
+        private final Set<PropositionStatus> statuses;
+
+        MemoryView(String label, Set<PropositionStatus> statuses) {
+            this.label = label;
+            this.statuses = statuses;
+        }
+    }
+
     private final PropositionRepository propositionRepository;
     private final Function<String, NamedEntity> entityResolver;
     private final VerticalLayout propositionsContent;
     private final Span propositionCountSpan;
+    private final Select<MemoryView> statusSelect;
     private final Button clusterToggle;
     private Consumer<String> onDelete;
     private Consumer<Proposition> onEdit;
     private String contextId;
     private boolean clustered = false;
+    private Set<PropositionStatus> statusFilter = MemoryView.ACTIVE.statuses;
 
     public PropositionsPanel(PropositionRepository propositionRepository,
                              Function<String, NamedEntity> entityResolver) {
@@ -71,6 +95,18 @@ public class PropositionsPanel extends VerticalLayout {
         propositionCountSpan = new Span("(0 memories)");
         propositionCountSpan.addClassName("panel-count");
 
+        statusSelect = new Select<>();
+        statusSelect.setItems(MemoryView.values());
+        statusSelect.setItemLabelGenerator(view -> view.label);
+        statusSelect.setValue(MemoryView.ACTIVE);
+        statusSelect.addThemeVariants(SelectVariant.LUMO_SMALL);
+        statusSelect.addClassName("status-filter");
+        statusSelect.getElement().setAttribute("title", "Choose which memories to show");
+        statusSelect.addValueChangeListener(e -> {
+            statusFilter = e.getValue().statuses;
+            refresh();
+        });
+
         clusterToggle = new Button("Clusters", VaadinIcon.CLUSTER.create());
         clusterToggle.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
         clusterToggle.addClassName("cluster-toggle");
@@ -87,7 +123,7 @@ public class PropositionsPanel extends VerticalLayout {
         refreshButton.getElement().setAttribute("title", "Refresh memories");
         refreshButton.addClickListener(e -> refresh());
 
-        headerLayout.add(titleSpan, propositionCountSpan, clusterToggle, refreshButton);
+        headerLayout.add(titleSpan, propositionCountSpan, statusSelect, clusterToggle, refreshButton);
         headerLayout.setFlexGrow(1, titleSpan);
 
         propositionsContent = new VerticalLayout();
@@ -106,6 +142,15 @@ public class PropositionsPanel extends VerticalLayout {
 
     public void refresh() {
         propositionsContent.removeAll();
+        if (contextId == null) {
+            // No context means nothing to show. Deliberately not a findAll() across every
+            // context — that would leak other users' memories into this per-user panel.
+            propositionCountSpan.setText("(0 memories)");
+            var emptyMessage = new Span("No memories yet. Start a conversation and analyze it to build memories.");
+            emptyMessage.addClassName("panel-empty-message");
+            propositionsContent.add(emptyMessage);
+            return;
+        }
         if (clustered) {
             refreshClustered();
         } else {
@@ -120,6 +165,10 @@ public class PropositionsPanel extends VerticalLayout {
     public void showScoredPropositions(List<SimilarityResult<Proposition>> results) {
         propositionsContent.removeAll();
         propositionCountSpan.setText("(" + results.size() + " relevant)");
+        // Scored results are driven by the caller, not by a context query, so the status
+        // filter and cluster toggle don't apply. Hide both — changing the filter would
+        // trigger a context-scoped refresh and wipe these results.
+        statusSelect.setVisible(false);
         clusterToggle.setVisible(false);
 
         if (results.isEmpty()) {
@@ -151,10 +200,13 @@ public class PropositionsPanel extends VerticalLayout {
         }
     }
 
+    /** Context-scoped query carrying the current status filter; the store applies it (Cypher on Neo4j). */
+    private PropositionQuery memoryQuery() {
+        return PropositionQuery.againstContext(contextId).withStatuses(statusFilter);
+    }
+
     private void refreshFlat() {
-        var propositions = contextId != null
-                ? propositionRepository.findByContextIdValue(contextId)
-                : propositionRepository.findAll();
+        var propositions = propositionRepository.query(memoryQuery());
         propositionCountSpan.setText("(" + propositions.size() + " memories)");
 
         if (propositions.isEmpty()) {
@@ -170,7 +222,8 @@ public class PropositionsPanel extends VerticalLayout {
     }
 
     private void refreshClustered() {
-        var query = PropositionQuery.againstContext(contextId);
+        // One query scopes both the clustering and the unclustered list.
+        var query = memoryQuery();
         List<Cluster<Proposition>> clusters = propositionRepository.findClusters(0.7, 10, query);
 
         // Collect all propositions that appear in a cluster
@@ -182,10 +235,8 @@ public class PropositionsPanel extends VerticalLayout {
             }
         }
 
-        // Get all propositions so we can find unclustered ones
-        var allPropositions = contextId != null
-                ? propositionRepository.findByContextIdValue(contextId)
-                : propositionRepository.findAll();
+        // The in-scope propositions, to find the ones no cluster claimed.
+        var allPropositions = propositionRepository.query(query);
 
         int totalCount = allPropositions.size();
         propositionCountSpan.setText("(" + totalCount + " memories, " + clusters.size() + " clusters)");

@@ -188,6 +188,7 @@ public class MemorySection extends VerticalLayout {
 
         // "Clear All" button
         var clearAllButton = new Button("Clear All", VaadinIcon.TRASH.create());
+        clearAllButton.addClassName("memory-clear-all");
         clearAllButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ERROR);
         clearAllButton.addClickListener(e -> {
             var dialog = new ConfirmDialog();
