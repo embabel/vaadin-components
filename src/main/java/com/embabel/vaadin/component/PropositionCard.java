@@ -25,6 +25,7 @@ import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextArea;
 
 import java.time.ZoneId;
@@ -47,7 +48,17 @@ public class PropositionCard extends Div {
     private Consumer<Proposition> onEdit;
     private final Function<String, NamedEntity> entityResolver;
 
+    /**
+     * Convenience constructor for callers that don't explain collapses.
+     */
     public PropositionCard(Proposition prop, Function<String, NamedEntity> entityResolver) {
+        this(prop, entityResolver, null);
+    }
+
+    public PropositionCard(
+            Proposition prop,
+            Function<String, NamedEntity> entityResolver,
+            CollapseExplanationProvider collapseExplanationProvider) {
         this.proposition = prop;
         this.entityResolver = entityResolver;
         addClassName("proposition-card");
@@ -96,6 +107,12 @@ public class PropositionCard extends Div {
 
         metaLayout.add(confidenceSpan, timeSpan);
 
+        if (collapseExplanationProvider != null) {
+            collapseExplanationProvider.explain(prop.getId())
+                    .filter(explanation -> !explanation.retired().isEmpty())
+                    .ifPresent(explanation -> metaLayout.add(createCollapseBadge(explanation)));
+        }
+
         var mentions = prop.getMentions();
         if (!mentions.isEmpty()) {
             var entitiesLayout = new HorizontalLayout();
@@ -139,6 +156,80 @@ public class PropositionCard extends Div {
         }
 
         return badge;
+    }
+
+    private Button createCollapseBadge(CollapseExplanation explanation) {
+        var badge = new Button("Merged " + explanation.retired().size() + " duplicate"
+                + (explanation.retired().size() == 1 ? "" : "s"), VaadinIcon.COMPRESS_SQUARE.create());
+        badge.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+        badge.addClassName("collapse-explanation-badge");
+        badge.getElement().setAttribute("title", "Show why these memories were merged");
+        badge.addClickListener(e -> showCollapseDialog(explanation));
+        return badge;
+    }
+
+    private void showCollapseDialog(CollapseExplanation explanation) {
+        var dialog = new Dialog();
+        dialog.setHeaderTitle("Why this memory was merged");
+        dialog.setWidth("520px");
+        dialog.setCloseOnEsc(true);
+        dialog.setCloseOnOutsideClick(true);
+        dialog.addDialogCloseActionListener(e -> dialog.close());
+        dialog.addClassName("collapse-explanation-dialog");
+
+        var content = new VerticalLayout();
+        content.setPadding(false);
+        content.setSpacing(true);
+        content.addClassName("collapse-explanation-content");
+
+        var survivorLabel = new Span("Kept: " + explanation.survivorText());
+        survivorLabel.addClassName("collapse-survivor-text");
+        content.add(survivorLabel);
+
+        for (var member : explanation.retired()) {
+            content.add(createRetiredMemberSection(explanation, member));
+        }
+
+        dialog.add(content);
+        dialog.getFooter().add(new Button("Close", e -> dialog.close()));
+        dialog.open();
+    }
+
+    private VerticalLayout createRetiredMemberSection(CollapseExplanation explanation, CollapseExplanation.RetiredMember member) {
+        var section = new VerticalLayout();
+        section.setPadding(false);
+        section.setSpacing(false);
+        section.addClassName("collapse-retired-member");
+
+        var text = member.text() != null ? member.text() : "(memory " + member.propositionId() + ")";
+        var textSpan = new Span("Folded in: " + text);
+        textSpan.addClassName("collapse-retired-text");
+        section.add(textSpan);
+
+        var edge = explanation.edges().stream()
+                .filter(e -> e.anchorId().equals(member.propositionId()) || e.memberId().equals(member.propositionId()))
+                .findFirst();
+
+        edge.ifPresent(e -> {
+            var signalsLayout = new VerticalLayout();
+            signalsLayout.setPadding(false);
+            signalsLayout.setSpacing(false);
+            signalsLayout.addClassName("collapse-signals");
+
+            for (var signal : e.signals()) {
+                var scorePct = (int) Math.round(signal.score() * 100);
+                var reason = signal.explanation() != null ? " — " + signal.explanation() : "";
+                var signalSpan = new Span(signal.signal() + ": " + scorePct + "%" + reason);
+                signalSpan.addClassName("collapse-signal");
+                if (signal.veto()) {
+                    signalSpan.addClassName("collapse-signal-veto");
+                }
+                signalsLayout.add(signalSpan);
+            }
+            section.add(signalsLayout);
+        });
+
+        return section;
     }
 
     private void showEntityDialog(NamedEntity entity) {

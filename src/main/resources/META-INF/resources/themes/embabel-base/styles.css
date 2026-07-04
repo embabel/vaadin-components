@@ -804,6 +804,51 @@ vaadin-login-form-wrapper::part(form-title) {
   color: white;
 }
 
+.collapse-explanation-badge {
+  color: var(--sb-accent-light);
+}
+
+.collapse-explanation-badge:hover {
+  color: var(--sb-accent);
+}
+
+.collapse-explanation-content {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.collapse-survivor-text {
+  color: var(--sb-text-primary);
+  font-weight: 600;
+  font-size: var(--lumo-font-size-s);
+}
+
+.collapse-retired-member {
+  border-top: 1px solid var(--sb-border);
+  padding-top: var(--lumo-space-s);
+  margin-top: var(--lumo-space-s);
+}
+
+.collapse-retired-text {
+  color: var(--sb-text-secondary);
+  font-size: var(--lumo-font-size-s);
+}
+
+.collapse-signals {
+  margin-top: var(--lumo-space-xs);
+  gap: 2px;
+}
+
+.collapse-signal {
+  color: var(--sb-text-muted);
+  font-size: var(--lumo-font-size-xs);
+  display: block;
+}
+
+.collapse-signal-veto {
+  color: var(--sb-error);
+}
+
 /* ===== Propositions Panel ===== */
 
 .panel-title {

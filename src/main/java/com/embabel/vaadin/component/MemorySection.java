@@ -50,6 +50,9 @@ public class MemorySection extends VerticalLayout {
 
     public record RememberRequest(InputStream inputStream, String filename) {}
 
+    /**
+     * Convenience constructor for callers that don't explain collapses.
+     */
     public MemorySection(
             PropositionRepository propositionRepository,
             Function<String, NamedEntity> entityResolver,
@@ -57,9 +60,20 @@ public class MemorySection extends VerticalLayout {
             Runnable onAnalyze,
             Consumer<RememberRequest> onRemember,
             Consumer<String> onClearContext) {
+        this(propositionRepository, entityResolver, null, contextIdSupplier, onAnalyze, onRemember, onClearContext);
+    }
+
+    public MemorySection(
+            PropositionRepository propositionRepository,
+            Function<String, NamedEntity> entityResolver,
+            CollapseExplanationProvider collapseExplanationProvider,
+            Supplier<String> contextIdSupplier,
+            Runnable onAnalyze,
+            Consumer<RememberRequest> onRemember,
+            Consumer<String> onClearContext) {
 
         // Create propositions panel early (referenced by button listeners)
-        propositionsPanel = new PropositionsPanel(propositionRepository, entityResolver);
+        propositionsPanel = new PropositionsPanel(propositionRepository, entityResolver, collapseExplanationProvider);
         propositionsPanel.setContextId(contextIdSupplier.get());
         propositionsPanel.setOnDelete(id -> {
             var deleted = propositionRepository.delete(id);

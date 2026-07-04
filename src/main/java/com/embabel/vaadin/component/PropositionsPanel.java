@@ -65,6 +65,7 @@ public class PropositionsPanel extends VerticalLayout {
 
     private final PropositionRepository propositionRepository;
     private final Function<String, NamedEntity> entityResolver;
+    private final CollapseExplanationProvider collapseExplanationProvider;
     private final VerticalLayout propositionsContent;
     private final Span propositionCountSpan;
     private final Select<MemoryView> statusSelect;
@@ -75,10 +76,20 @@ public class PropositionsPanel extends VerticalLayout {
     private boolean clustered = false;
     private Set<PropositionStatus> statusFilter = MemoryView.ACTIVE.statuses;
 
+    /**
+     * Convenience constructor for callers that don't explain collapses.
+     */
     public PropositionsPanel(PropositionRepository propositionRepository,
                              Function<String, NamedEntity> entityResolver) {
+        this(propositionRepository, entityResolver, null);
+    }
+
+    public PropositionsPanel(PropositionRepository propositionRepository,
+                             Function<String, NamedEntity> entityResolver,
+                             CollapseExplanationProvider collapseExplanationProvider) {
         this.propositionRepository = propositionRepository;
         this.entityResolver = entityResolver;
+        this.collapseExplanationProvider = collapseExplanationProvider;
 
         setPadding(false);
         setSpacing(true);
@@ -364,7 +375,7 @@ public class PropositionsPanel extends VerticalLayout {
     }
 
     private PropositionCard createCard(Proposition prop) {
-        var card = new PropositionCard(prop, entityResolver);
+        var card = new PropositionCard(prop, entityResolver, collapseExplanationProvider);
         if (onDelete != null) {
             card.setOnDelete(p -> {
                 onDelete.accept(p.getId());
