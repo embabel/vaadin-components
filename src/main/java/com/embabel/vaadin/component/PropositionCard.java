@@ -202,7 +202,14 @@ public class PropositionCard extends Div {
         section.addClassName("collapse-retired-member");
 
         var text = member.text() != null ? member.text() : "(memory " + member.propositionId() + ")";
-        var textSpan = new Span("Folded in: " + text);
+        var displayText = "Folded in: " + text;
+
+        // Append prior status if present and non-blank
+        if (member.priorStatus() != null && !member.priorStatus().isBlank()) {
+            displayText += "  (was " + member.priorStatus() + ")";
+        }
+
+        var textSpan = new Span(displayText);
         textSpan.addClassName("collapse-retired-text");
         section.add(textSpan);
 
