@@ -55,6 +55,14 @@ public class PropositionCard extends Div {
         this(prop, entityResolver, null);
     }
 
+    /**
+     * Card displaying a proposition, its metadata (confidence, created time), resolved entity mentions,
+     * and optionally why it was collapsed into another memory. The card provides inline edit and delete.
+     *
+     * @param prop the proposition to display
+     * @param entityResolver resolves entity mention IDs to NamedEntity; null to show mentions unresolved
+     * @param collapseExplanationProvider looks up why this proposition was collapsed, if at all; null skips collapse badge
+     */
     public PropositionCard(
             Proposition prop,
             Function<String, NamedEntity> entityResolver,

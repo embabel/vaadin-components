@@ -84,6 +84,15 @@ public class PropositionsPanel extends VerticalLayout {
         this(propositionRepository, entityResolver, null);
     }
 
+    /**
+     * Panel showing the knowledge base of propositions in a context. Offers flat or clustered view,
+     * status filter (active/all/stale), and inline edit/delete. Optionally explains why propositions
+     * were collapsed into one another.
+     *
+     * @param propositionRepository stores and queries propositions
+     * @param entityResolver resolves entity mention IDs to NamedEntity; null to show mentions unresolved
+     * @param collapseExplanationProvider looks up why propositions were collapsed, if at all; null skips collapse badges
+     */
     public PropositionsPanel(PropositionRepository propositionRepository,
                              Function<String, NamedEntity> entityResolver,
                              CollapseExplanationProvider collapseExplanationProvider) {
