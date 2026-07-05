@@ -63,6 +63,19 @@ public class MemorySection extends VerticalLayout {
         this(propositionRepository, entityResolver, null, contextIdSupplier, onAnalyze, onRemember, onClearContext);
     }
 
+    /**
+     * Memory section with file upload (Learn button), optional Analyze trigger, Clear All action,
+     * and a propositions panel showing the knowledge base for this context. Optionally explains why
+     * propositions were collapsed into one another.
+     *
+     * @param propositionRepository stores and queries propositions
+     * @param entityResolver resolves entity mention IDs to NamedEntity; null to show mentions unresolved
+     * @param collapseExplanationProvider looks up why propositions were collapsed, if at all; null skips collapse badges
+     * @param contextIdSupplier supplies the context ID for this section; can change across the lifetime of the component
+     * @param onAnalyze invoked when the Analyze button is clicked; null hides the button
+     * @param onRemember invoked when a file upload succeeds; null hides the Learn button
+     * @param onClearContext invoked when Clear All is confirmed with the current context ID
+     */
     public MemorySection(
             PropositionRepository propositionRepository,
             Function<String, NamedEntity> entityResolver,
