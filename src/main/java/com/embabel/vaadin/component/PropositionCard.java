@@ -195,7 +195,7 @@ public class PropositionCard extends Div {
         dialog.open();
     }
 
-    private VerticalLayout createRetiredMemberSection(CollapseExplanation explanation, CollapseExplanation.RetiredMember member) {
+    VerticalLayout createRetiredMemberSection(CollapseExplanation explanation, CollapseExplanation.RetiredMember member) {
         var section = new VerticalLayout();
         section.setPadding(false);
         section.setSpacing(false);
@@ -204,7 +204,6 @@ public class PropositionCard extends Div {
         var text = member.text() != null ? member.text() : "(memory " + member.propositionId() + ")";
         var displayText = "Folded in: " + text;
 
-        // Append prior status if present and non-blank
         if (member.priorStatus() != null && !member.priorStatus().isBlank()) {
             displayText += "  (was " + member.priorStatus() + ")";
         }

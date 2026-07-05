@@ -22,7 +22,6 @@ import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.html.Span;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -92,24 +91,12 @@ class PropositionCardCollapseStatusTest {
         );
 
         var card = new PropositionCard(survivor(), entityResolver);
-        var section = invokeCreateRetiredMemberSection(card, explanation, member);
+        var section = card.createRetiredMemberSection(explanation, member);
 
         return allComponents(section).stream()
                 .filter(c -> c instanceof Span)
                 .map(c -> ((Span) c).getText())
                 .reduce("", (a, b) -> a + " " + b);
-    }
-
-    private static Component invokeCreateRetiredMemberSection(
-            PropositionCard card, CollapseExplanation explanation, CollapseExplanation.RetiredMember member) {
-        try {
-            Method m = PropositionCard.class.getDeclaredMethod(
-                    "createRetiredMemberSection", CollapseExplanation.class, CollapseExplanation.RetiredMember.class);
-            m.setAccessible(true);
-            return (Component) m.invoke(card, explanation, member);
-        } catch (ReflectiveOperationException e) {
-            throw new AssertionError("could not invoke createRetiredMemberSection", e);
-        }
     }
 
     private Proposition survivor() {
