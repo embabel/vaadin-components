@@ -16,6 +16,7 @@
 package com.embabel.vaadin.component;
 
 import com.embabel.agent.rag.model.NamedEntity;
+import com.embabel.dice.proposition.Proposition;
 import com.embabel.dice.proposition.PropositionRepository;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -33,6 +34,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
+import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -242,5 +245,33 @@ public class MemorySection extends VerticalLayout {
 
     public void setContextId(String contextId) {
         propositionsPanel.setContextId(contextId);
+    }
+
+    /**
+     * Looks up lineage for a proposition, or null to hide the lineage affordance.
+     */
+    public void setLineageProvider(LineageProvider lineageProvider) {
+        propositionsPanel.setLineageProvider(lineageProvider);
+    }
+
+    /**
+     * Looks up propositions mentioning an entity, or null to omit the related-memories section.
+     */
+    public void setRelatedPropositionsLoader(Function<String, List<Proposition>> relatedPropositionsLoader) {
+        propositionsPanel.setRelatedPropositionsLoader(relatedPropositionsLoader);
+    }
+
+    /**
+     * Loader for the entity-360 related-records shown when an entity is opened from a memory card.
+     */
+    public void setRelatedRecordsLoader(Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader) {
+        propositionsPanel.setRelatedRecordsLoader(relatedRecordsLoader);
+    }
+
+    /**
+     * Set the handler to invoke when an "Undo this merge" button is clicked in a lineage section.
+     */
+    public void setOnUndoMember(BiConsumer<String, String> onUndoMember) {
+        propositionsPanel.setOnUndoMember(onUndoMember);
     }
 }

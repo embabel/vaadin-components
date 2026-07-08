@@ -35,7 +35,30 @@ public class FileUploadSection extends VerticalLayout {
 
     private static final Logger logger = LoggerFactory.getLogger(FileUploadSection.class);
 
+    /**
+     * Receives an uploaded file plus the optional organization the user attributed it to.
+     * SHIM NOTE: reconstructed from embabel-me's call sites (UserDrawer/GlobalDrawer document
+     * provenance) because the authoritative version is unpublished; reconcile on next sync.
+     */
+    @FunctionalInterface
+    public interface IngestHandler {
+        /**
+         * @param input    uploaded file content
+         * @param filename original file name
+         * @param fromOrg  organization the document came from, or null/blank when not given
+         */
+        void ingest(InputStream input, String filename, String fromOrg);
+    }
+
     public FileUploadSection(BiConsumer<InputStream, String> onIngest, Runnable onSuccess) {
+        this((input, filename, fromOrg) -> onIngest.accept(input, filename), onSuccess);
+    }
+
+    /**
+     * @param onIngest  receives (content, filename, fromOrg) for each uploaded file
+     * @param onSuccess runs after a successful ingest
+     */
+    public FileUploadSection(IngestHandler onIngest, Runnable onSuccess) {
         setPadding(true);
         setSpacing(true);
 
@@ -57,11 +80,16 @@ public class FileUploadSection extends VerticalLayout {
         );
         upload.setMaxFileSize(10 * 1024 * 1024); // 10MB
 
+        var fromOrgField = new com.vaadin.flow.component.textfield.TextField();
+        fromOrgField.setPlaceholder("From (organization, optional)");
+        fromOrgField.setWidthFull();
+        fromOrgField.addClassName("upload-from-org");
+
         upload.addSucceededListener(event -> {
             var filename = event.getFileName();
             try {
                 var inputStream = buffer.getInputStream();
-                onIngest.accept(inputStream, filename);
+                onIngest.ingest(inputStream, filename, fromOrgField.getValue());
 
                 Notification.show("Uploaded: " + filename, 3000, Notification.Position.BOTTOM_CENTER)
                         .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
@@ -80,6 +108,6 @@ public class FileUploadSection extends VerticalLayout {
                     .addThemeVariants(NotificationVariant.LUMO_ERROR);
         });
 
-        add(instructions, upload);
+        add(instructions, fromOrgField, upload);
     }
 }

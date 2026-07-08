@@ -22,6 +22,8 @@ import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.Shortcuts;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.Key;
+import com.vaadin.flow.component.Shortcuts;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
@@ -32,6 +34,7 @@ import com.vaadin.flow.component.textfield.TextArea;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -46,9 +49,15 @@ public class PropositionCard extends Div {
     private final Proposition proposition;
     private final Button editButton;
     private final Button deleteButton;
+    private final HorizontalLayout metaLayout;
     private Consumer<Proposition> onDelete;
     private Consumer<Proposition> onEdit;
     private final Function<String, NamedEntity> entityResolver;
+    private LineageProvider lineageProvider;
+    private Button lineageBadge;
+    private Function<String, java.util.List<Proposition>> relatedPropositionsLoader;
+    private Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader;
+    private BiConsumer<String, String> onUndoMember;
 
     /**
      * Convenience constructor for callers that don't explain collapses.
@@ -102,7 +111,7 @@ public class PropositionCard extends Div {
         headerLayout.add(textSpan, editButton, deleteButton);
         headerLayout.setFlexGrow(1, textSpan);
 
-        var metaLayout = new HorizontalLayout();
+        metaLayout = new HorizontalLayout();
         metaLayout.setSpacing(true);
         metaLayout.addClassName("proposition-meta");
 
@@ -253,15 +262,103 @@ public class PropositionCard extends Div {
         return section;
     }
 
-    private void showEntityDialog(NamedEntity entity) {
+    /**
+     * Give this card a way to trace where its memory came from. When set, a "Lineage" badge
+     * appears offering a dialog with the grounding/provenance/collapse trail; when cleared, the
+     * badge is removed.
+     *
+     * @param lineageProvider looks up lineage for a proposition id, or null to hide the affordance
+     */
+    public void setLineageProvider(LineageProvider lineageProvider) {
+        this.lineageProvider = lineageProvider;
+        if (lineageBadge != null) {
+            metaLayout.remove(lineageBadge);
+            lineageBadge = null;
+        }
+        if (lineageProvider != null) {
+            lineageBadge = createLineageBadge(lineageProvider);
+            metaLayout.add(lineageBadge);
+        }
+    }
+
+    /**
+     * Give entity dialogs a way to show memories mentioning the entity. When set,
+     * entity panels display a collapsed "Mentioned in N memories" section with those propositions.
+     *
+     * @param relatedPropositionsLoader looks up propositions mentioning an entity id,
+     *                                   or null to omit the related-memories section
+     */
+    public void setRelatedPropositionsLoader(Function<String, java.util.List<Proposition>> relatedPropositionsLoader) {
+        this.relatedPropositionsLoader = relatedPropositionsLoader;
+    }
+
+    /**
+     * Give entity dialogs additional related-records sections (contact facts, people, orgs,
+     * emails, meetings, edge chips). When set, entity panels load and display these sections.
+     *
+     * @param relatedRecordsLoader looks up RelatedRecords by entity id,
+     *                             or null to omit related records
+     */
+    public void setRelatedRecordsLoader(Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader) {
+        this.relatedRecordsLoader = relatedRecordsLoader;
+    }
+
+    /**
+     * Set the handler to invoke when an "Undo this merge" button is clicked in the lineage section.
+     *
+     * @param onUndoMember callback receiving (survivorId, retiredMemberId) when undo is clicked,
+     *                     or null to disable undo functionality
+     */
+    public void setOnUndoMember(BiConsumer<String, String> onUndoMember) {
+        this.onUndoMember = onUndoMember;
+    }
+
+    private Button createLineageBadge(LineageProvider provider) {
+        var badge = new Button("Lineage", VaadinIcon.CONNECT.create());
+        badge.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+        badge.addClassName("lineage-badge");
+        badge.getElement().setAttribute("title", "Show where this memory came from");
+        badge.addClickListener(e -> showLineageDialog(provider));
+        return badge;
+    }
+
+    private void showLineageDialog(LineageProvider provider) {
         var dialog = new Dialog();
-        dialog.setHeaderTitle(entity.getName());
-        dialog.setWidth("400px");
+        dialog.setHeaderTitle("Lineage");
+        dialog.setWidth("520px");
+        dialog.getElement().setProperty("overlayClass", "lineage-dialog");
+        Shortcuts.addShortcutListener(dialog, dialog::close, Key.ESCAPE);
+
+        var section = new LineageSection(provider);
+        if (onUndoMember != null) {
+            section.setOnUndoMember(onUndoMember);
+        }
+        section.show(proposition.getId());
+        dialog.add(section);
+        dialog.getFooter().add(new Button("Close", e -> dialog.close()));
+        dialog.open();
+    }
+
+    // Package-visible (not private) only so tests can drive the real dialog-opening path
+    // directly, the same way clicking a mention badge does, without needing a browser to
+    // fire the DOM click event.
+    void showEntityDialog(NamedEntity entity) {
+        var dialog = new Dialog();
+        dialog.setWidth("640px");
         dialog.setCloseOnEsc(true);
         dialog.setCloseOnOutsideClick(true);
-        dialog.addDialogCloseActionListener(e -> dialog.close());
-        dialog.add(new EntityPanel(entity));
-        dialog.getFooter().add(new Button("Close", e -> dialog.close()));
+        dialog.getElement().setProperty("overlayClass", "entity-360-dialog");
+
+        var panel = new EntityPanel(entity, relatedPropositionsLoader);
+        panel.setOnClose(dialog::close);
+        if (relatedRecordsLoader != null) {
+            panel.setRelatedRecords(relatedRecordsLoader);
+        }
+        dialog.add(panel);
+
+        // Add Esc-to-close shortcut (similar to other dialogs in this card)
+        Shortcuts.addShortcutListener(dialog, dialog::close, Key.ESCAPE);
+
         dialog.open();
     }
 

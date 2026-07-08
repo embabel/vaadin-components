@@ -33,12 +33,17 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.select.SelectVariant;
 
+import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.dom.Element;
+
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Panel showing the knowledge base of extracted propositions.
@@ -72,9 +77,15 @@ public class PropositionsPanel extends VerticalLayout {
     private final Button clusterToggle;
     private Consumer<String> onDelete;
     private Consumer<Proposition> onEdit;
+    private LineageProvider lineageProvider;
+    private Function<String, List<Proposition>> relatedPropositionsLoader;
+    private Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader;
+    private BiConsumer<String, String> onUndoMember;
     private String contextId;
     private boolean clustered = false;
     private Set<PropositionStatus> statusFilter = MemoryView.ACTIVE.statuses;
+    private Supplier<List<SimilarityResult<Proposition>>> scoredResultsSupplier;
+    private boolean scoredMode = false;
 
     /**
      * Convenience constructor for callers that don't explain collapses.
@@ -103,6 +114,9 @@ public class PropositionsPanel extends VerticalLayout {
         setPadding(false);
         setSpacing(true);
         setSizeFull();
+
+        // Add component-scoped CSS styling for scored mode cards with relevance bars and dedup badges
+        injectScoredModeStyles();
 
         var headerLayout = new HorizontalLayout();
         headerLayout.setAlignItems(Alignment.CENTER);
@@ -161,6 +175,12 @@ public class PropositionsPanel extends VerticalLayout {
     }
 
     public void refresh() {
+        if (scoredMode) {
+            if (scoredResultsSupplier != null) {
+                showScoredPropositions(scoredResultsSupplier.get());
+            }
+            return;
+        }
         propositionsContent.removeAll();
         if (contextId == null) {
             // No context means nothing to show. Deliberately not a findAll() across every
@@ -183,6 +203,7 @@ public class PropositionsPanel extends VerticalLayout {
      * to show propositions relevant to the current conversation.
      */
     public void showScoredPropositions(List<SimilarityResult<Proposition>> results) {
+        scoredMode = true;
         propositionsContent.removeAll();
         propositionCountSpan.setText("(" + results.size() + " relevant)");
         // Scored results are driven by the caller, not by a context query, so the status
@@ -198,25 +219,171 @@ public class PropositionsPanel extends VerticalLayout {
             return;
         }
 
+        // Dedup: normalize text, group by normalized form, keep highest-scored result per group.
+        var dedupMap = new java.util.LinkedHashMap<String, DedupGroup>();
         for (var result : results) {
-            var wrapper = new HorizontalLayout();
-            wrapper.setWidthFull();
-            wrapper.setAlignItems(Alignment.CENTER);
-            wrapper.setPadding(false);
-            wrapper.setSpacing(false);
+            var normalizedText = normalizeText(result.getMatch().getText());
+            dedupMap.computeIfAbsent(normalizedText, k -> new DedupGroup())
+                    .considerResult(result);
+        }
+
+        for (var group : dedupMap.values()) {
+            var result = group.getSurvivor();
+            var cardContainer = new Div();
+            cardContainer.addClassName("scored-card-wrapper");
 
             var card = createCard(result.getMatch());
+            card.addClassName("scored-card-content");
+            cardContainer.add(card);
 
-            var scorePct = (int) Math.round(result.getScore() * 100);
+            // Add relevance bar + score in meta-row
+            double score = result.getScore();
+            var metaRow = new Div();
+            metaRow.addClassName("scored-meta-row");
+
+            var relBar = new Div();
+            relBar.addClassName("relevance-bar");
+            var barFill = new Span();
+            int scorePct = (int) Math.round(score * 100);
+            barFill.getElement().getStyle().set("width", scorePct + "%");
+            relBar.add(barFill);
+
+            var scoreDisplay = new Span(String.format("%.2f", score));
+            scoreDisplay.addClassName("relevance-score");
+
+            metaRow.add(relBar, scoreDisplay);
+            cardContainer.add(metaRow);
+
+            // Add dedup badge if this survivor collapsed other results (positioned absolutely via CSS)
+            int collapsedCount = group.getCollapsedCount();
+            if (collapsedCount > 0) {
+                var dedupBadge = new Span("+" + collapsedCount + " similar");
+                dedupBadge.addClassName("dedup-collapsed-badge");
+                cardContainer.add(dedupBadge);
+            }
+
+            // Add hidden similarity-badge to preserve any backward compatibility
             var scoreBadge = new Span(scorePct + "%");
             scoreBadge.addClassName("similarity-badge");
-            if (scorePct >= 90) scoreBadge.addClassName("score-high");
-            else if (scorePct >= 80) scoreBadge.addClassName("score-medium");
-            else scoreBadge.addClassName("score-low");
+            cardContainer.add(scoreBadge);
 
-            wrapper.add(card, scoreBadge);
-            wrapper.setFlexGrow(1, card);
-            propositionsContent.add(wrapper);
+            propositionsContent.add(cardContainer);
+        }
+    }
+
+    /** Inject CSS styling for scored mode cards with relevance bars and dedup badges. */
+    private void injectScoredModeStyles() {
+        String css = """
+            .scored-card-wrapper {
+              position: relative;
+              border: 1px solid var(--lumo-contrast-20pct);
+              border-radius: var(--lumo-border-radius-m);
+              background: var(--lumo-base-color);
+              padding: 10px 11px;
+              margin-bottom: 8px;
+            }
+
+            .scored-card-wrapper .proposition-card {
+              background: transparent;
+              border: none;
+              padding: 0;
+              margin-bottom: 0;
+            }
+
+            .scored-card-wrapper .proposition-card:hover {
+              border-color: transparent;
+            }
+
+            .scored-card-content {
+              flex: 1;
+            }
+
+            .scored-meta-row {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              margin-top: 7px;
+            }
+
+            .relevance-bar {
+              flex: 1;
+              height: 5px;
+              border-radius: 3px;
+              background: var(--lumo-contrast-10pct);
+              overflow: hidden;
+            }
+
+            .relevance-bar > span {
+              display: block;
+              height: 100%;
+              background: var(--lumo-primary-color);
+              border-radius: 3px;
+            }
+
+            .relevance-score {
+              font-size: 10.5px;
+              color: var(--lumo-secondary-text-color);
+              font-variant-numeric: tabular-nums;
+              width: 30px;
+              text-align: right;
+            }
+
+            .dedup-collapsed-badge {
+              position: absolute;
+              top: 8px;
+              right: 9px;
+              font-size: 9.5px;
+              font-weight: 700;
+              padding: 1px 6px;
+              border-radius: 999px;
+              background: var(--lumo-warning-color);
+              color: white;
+              opacity: 0.9;
+            }
+
+            .similarity-badge {
+              display: none;
+            }
+            """;
+
+        Element styleElement = new Element("style");
+        styleElement.setText(css);
+        getElement().appendVirtualChild(styleElement);
+    }
+
+    /** Normalize proposition text for dedup comparison: trim, lowercase, collapse whitespace, strip trailing period. */
+    private static String normalizeText(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+        return text.trim()
+                .toLowerCase()
+                .replaceAll("\\s+", " ")
+                .replaceAll("\\.$", "");
+    }
+
+    /** Tracks the best result and collapsed count for a normalized text group. */
+    private static class DedupGroup {
+        private SimilarityResult<Proposition> survivor;
+        private int collapsedCount = 0;
+
+        void considerResult(SimilarityResult<Proposition> result) {
+            if (survivor == null || result.getScore() > survivor.getScore()) {
+                if (survivor != null) {
+                    collapsedCount++;
+                }
+                survivor = result;
+            } else {
+                collapsedCount++;
+            }
+        }
+
+        SimilarityResult<Proposition> getSurvivor() {
+            return survivor;
+        }
+
+        int getCollapsedCount() {
+            return collapsedCount;
         }
     }
 
@@ -385,6 +552,12 @@ public class PropositionsPanel extends VerticalLayout {
 
     private PropositionCard createCard(Proposition prop) {
         var card = new PropositionCard(prop, entityResolver, collapseExplanationProvider);
+        card.setLineageProvider(lineageProvider);
+        card.setRelatedPropositionsLoader(relatedPropositionsLoader);
+        card.setRelatedRecordsLoader(relatedRecordsLoader);
+        if (onUndoMember != null) {
+            card.setOnUndoMember(onUndoMember);
+        }
         if (onDelete != null) {
             card.setOnDelete(p -> {
                 onDelete.accept(p.getId());
@@ -410,8 +583,55 @@ public class PropositionsPanel extends VerticalLayout {
         this.onEdit = handler;
     }
 
+    /**
+     * Give cards a way to trace where a memory came from. When set, each proposition card
+     * offers a "Lineage" affordance that opens the grounding/provenance/collapse trail.
+     *
+     * @param lineageProvider looks up lineage for a proposition id, or null to hide the affordance
+     */
+    public void setLineageProvider(LineageProvider lineageProvider) {
+        this.lineageProvider = lineageProvider;
+    }
+
+    /**
+     * Give entity dialogs a way to show memories mentioning the entity. When set,
+     * entity panels display a collapsed "Mentioned in N memories" section with those propositions.
+     *
+     * @param relatedPropositionsLoader looks up propositions mentioning an entity id,
+     *                                   or null to omit the related-memories section
+     */
+    public void setRelatedPropositionsLoader(Function<String, List<Proposition>> relatedPropositionsLoader) {
+        this.relatedPropositionsLoader = relatedPropositionsLoader;
+    }
+
+    /**
+     * Give entity dialogs additional related-records sections (contact facts, people, orgs,
+     * emails, meetings, edge chips). When set, entity panels load and display these sections.
+     *
+     * @param relatedRecordsLoader looks up RelatedRecords by entity id,
+     *                             or null to omit related records
+     */
+    public void setRelatedRecordsLoader(Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader) {
+        this.relatedRecordsLoader = relatedRecordsLoader;
+    }
+
+    /**
+     * Set the handler to invoke when an "Undo this merge" button is clicked in a lineage section.
+     *
+     * @param onUndoMember callback receiving (survivorId, retiredMemberId) when undo is clicked,
+     *                     or null to disable undo functionality
+     */
+    public void setOnUndoMember(BiConsumer<String, String> onUndoMember) {
+        this.onUndoMember = onUndoMember;
+    }
+
     public void setContextId(String contextId) {
         this.contextId = contextId;
+        this.scoredMode = false;
+    }
+
+    public void setScoredResultsSupplier(Supplier<List<SimilarityResult<Proposition>>> supplier) {
+        this.scoredResultsSupplier = supplier;
     }
 
     public void scheduleRefresh(com.vaadin.flow.component.UI ui, long delayMs) {
