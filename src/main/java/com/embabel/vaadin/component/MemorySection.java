@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -252,5 +253,12 @@ public class MemorySection extends VerticalLayout {
      */
     public void setRelatedRecordsLoader(Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader) {
         propositionsPanel.setRelatedRecordsLoader(relatedRecordsLoader);
+    }
+
+    /**
+     * Set the handler to invoke when an "Undo this merge" button is clicked in a lineage section.
+     */
+    public void setOnUndoMember(BiConsumer<String, String> onUndoMember) {
+        propositionsPanel.setOnUndoMember(onUndoMember);
     }
 }
