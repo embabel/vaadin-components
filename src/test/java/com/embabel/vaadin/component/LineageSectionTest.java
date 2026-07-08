@@ -16,6 +16,7 @@
 package com.embabel.vaadin.component;
 
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import org.junit.jupiter.api.Test;
 
@@ -94,16 +95,16 @@ class LineageSectionTest {
     }
 
     private static String allText(Component root) {
-        var out = new ArrayList<Component>();
-        collect(root, out);
-        return out.stream()
-                .filter(c -> c instanceof Span)
-                .map(c -> ((Span) c).getText())
-                .reduce("", (a, b) -> a + " " + b);
+        return collectAllText(root);
     }
 
-    private static void collect(Component c, List<Component> out) {
-        out.add(c);
-        c.getChildren().forEach(child -> collect(child, out));
+    private static String collectAllText(Component c) {
+        var sb = new StringBuilder();
+        if (c instanceof Span span) {
+            sb.append(span.getText()).append(" ");
+        }
+        // Recursively collect from all children
+        c.getChildren().forEach(child -> sb.append(collectAllText(child)));
+        return sb.toString();
     }
 }
