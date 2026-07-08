@@ -29,6 +29,25 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
+ * Carrier for related records sections: contact facts, related entities (people, orgs,
+ * emails, meetings), and edge relationship chips. Propositions are handled separately
+ * via the relatedPropositionsLoader constructor parameter.
+ */
+record RelatedRecords(
+        List<String> contactFacts,
+        List<RelatedItem> people,
+        List<RelatedItem> organizations,
+        List<RelatedItem> emails,
+        List<RelatedItem> meetings,
+        List<String> edgeChips
+) {}
+
+/**
+ * A related entity: title is the entity name or message, subtitle adds context.
+ */
+record RelatedItem(String title, String subtitle) {}
+
+/**
  * Reusable panel displaying a resolved entity with its type, name, and description.
  */
 public class EntityPanel extends Div {
@@ -208,6 +227,177 @@ public class EntityPanel extends Div {
      */
     public void setOnClose(Runnable onClose) {
         this.onClose = onClose;
+    }
+
+    /**
+     * Load and render additional related-records sections (contact facts, people, orgs, emails,
+     * meetings, edge chips). Renders each non-empty category as a collapsible Details section.
+     *
+     * @param relatedRecordsLoader looks up RelatedRecords by entity id, or null to omit related records
+     */
+    public void setRelatedRecords(Function<String, RelatedRecords> relatedRecordsLoader) {
+        if (relatedRecordsLoader == null) {
+            return;
+        }
+
+        var relatedRecords = relatedRecordsLoader.apply(entity.getId());
+        if (relatedRecords == null) {
+            return;
+        }
+
+        // Render contact facts section if non-empty
+        if (relatedRecords.contactFacts() != null && !relatedRecords.contactFacts().isEmpty()) {
+            add(createContactFactsSection(relatedRecords.contactFacts()));
+        }
+
+        // Render people section if non-empty
+        if (relatedRecords.people() != null && !relatedRecords.people().isEmpty()) {
+            add(createRelatedItemsSection("People", relatedRecords.people()));
+        }
+
+        // Render organizations section if non-empty
+        if (relatedRecords.organizations() != null && !relatedRecords.organizations().isEmpty()) {
+            add(createRelatedItemsSection("Organizations", relatedRecords.organizations()));
+        }
+
+        // Render emails section if non-empty
+        if (relatedRecords.emails() != null && !relatedRecords.emails().isEmpty()) {
+            add(createRelatedItemsSection("Emails", relatedRecords.emails()));
+        }
+
+        // Render meetings section if non-empty
+        if (relatedRecords.meetings() != null && !relatedRecords.meetings().isEmpty()) {
+            add(createRelatedItemsSection("Meetings", relatedRecords.meetings()));
+        }
+
+        // Render edge chips section if non-empty
+        if (relatedRecords.edgeChips() != null && !relatedRecords.edgeChips().isEmpty()) {
+            add(createEdgeChipsSection(relatedRecords.edgeChips()));
+        }
+    }
+
+    private Details createContactFactsSection(List<String> contactFacts) {
+        var content = new VerticalLayout();
+        content.setPadding(false);
+        content.setSpacing(false);
+        content.addClassName("entity-contact-facts-content");
+        content.getStyle().set("gap", "8px");
+
+        for (var fact : contactFacts) {
+            var factSpan = new Span(fact);
+            factSpan.addClassName("entity-related-item");
+            factSpan.getStyle().set("display", "flex");
+            factSpan.getStyle().set("align-items", "center");
+            factSpan.getStyle().set("padding", "7px 10px");
+            factSpan.getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
+            factSpan.getStyle().set("border-radius", "6px");
+            factSpan.getStyle().set("background", "var(--lumo-contrast-5pct)");
+            factSpan.getStyle().set("font-size", "12px");
+            factSpan.getStyle().set("overflow", "hidden");
+            factSpan.getStyle().set("text-overflow", "ellipsis");
+            factSpan.getStyle().set("white-space", "nowrap");
+
+            content.add(factSpan);
+        }
+
+        var summary = new Span("Contact Facts");
+        summary.getStyle().set("font-size", "10.5px");
+        summary.getStyle().set("text-transform", "uppercase");
+        summary.getStyle().set("letter-spacing", ".04em");
+        summary.getStyle().set("color", "var(--lumo-tertiary-text-color)");
+        summary.getStyle().set("font-weight", "600");
+
+        var details = new Details(summary, content);
+        details.setOpened(false);
+        details.addClassName("entity-section");
+
+        return details;
+    }
+
+    private Details createRelatedItemsSection(String title, List<RelatedItem> items) {
+        var content = new VerticalLayout();
+        content.setPadding(false);
+        content.setSpacing(false);
+        content.addClassName("entity-related-items-content");
+        content.getStyle().set("gap", "5px");
+
+        for (var item : items) {
+            var itemRow = new Div();
+            itemRow.addClassName("entity-related-item");
+            itemRow.getStyle().set("display", "flex");
+            itemRow.getStyle().set("align-items", "center");
+            itemRow.getStyle().set("gap", "10px");
+            itemRow.getStyle().set("padding", "7px 10px");
+            itemRow.getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
+            itemRow.getStyle().set("border-radius", "6px");
+            itemRow.getStyle().set("background", "var(--lumo-contrast-5pct)");
+            itemRow.getStyle().set("font-size", "12px");
+
+            var titleSpan = new Span(item.title());
+            titleSpan.getStyle().set("flex", "1");
+            titleSpan.getStyle().set("overflow", "hidden");
+            titleSpan.getStyle().set("text-overflow", "ellipsis");
+            titleSpan.getStyle().set("white-space", "nowrap");
+
+            var subtitleSpan = new Span(item.subtitle());
+            subtitleSpan.getStyle().set("color", "var(--lumo-tertiary-text-color)");
+            subtitleSpan.getStyle().set("font-size", "11px");
+            subtitleSpan.getStyle().set("flex-shrink", "0");
+
+            itemRow.add(titleSpan, subtitleSpan);
+            content.add(itemRow);
+        }
+
+        var summary = new Span(title);
+        summary.getStyle().set("font-size", "10.5px");
+        summary.getStyle().set("text-transform", "uppercase");
+        summary.getStyle().set("letter-spacing", ".04em");
+        summary.getStyle().set("color", "var(--lumo-tertiary-text-color)");
+        summary.getStyle().set("font-weight", "600");
+
+        var details = new Details(summary, content);
+        details.setOpened(false);
+        details.addClassName("entity-section");
+
+        return details;
+    }
+
+    private Details createEdgeChipsSection(List<String> edgeChips) {
+        var content = new Div();
+        content.addClassName("entity-edge-chips-content");
+        content.getStyle().set("display", "flex");
+        content.getStyle().set("gap", "6px");
+        content.getStyle().set("flex-wrap", "wrap");
+
+        for (var chip : edgeChips) {
+            var chipSpan = new Span(chip);
+            chipSpan.addClassName("entity-edge-chip");
+            chipSpan.getStyle().set("display", "inline-flex");
+            chipSpan.getStyle().set("align-items", "center");
+            chipSpan.getStyle().set("gap", "5px");
+            chipSpan.getStyle().set("font-size", "11px");
+            chipSpan.getStyle().set("font-weight", "600");
+            chipSpan.getStyle().set("padding", "4px 9px");
+            chipSpan.getStyle().set("border-radius", "999px");
+            chipSpan.getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
+            chipSpan.getStyle().set("background", "var(--lumo-contrast-5pct)");
+            chipSpan.getStyle().set("color", "var(--lumo-secondary-text-color)");
+
+            content.add(chipSpan);
+        }
+
+        var summary = new Span("Relationships");
+        summary.getStyle().set("font-size", "10.5px");
+        summary.getStyle().set("text-transform", "uppercase");
+        summary.getStyle().set("letter-spacing", ".04em");
+        summary.getStyle().set("color", "var(--lumo-tertiary-text-color)");
+        summary.getStyle().set("font-weight", "600");
+
+        var details = new Details(summary, content);
+        details.setOpened(false);
+        details.addClassName("entity-section");
+
+        return details;
     }
 
     public NamedEntity getEntity() {
