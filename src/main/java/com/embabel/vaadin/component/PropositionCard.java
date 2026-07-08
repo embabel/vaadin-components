@@ -307,12 +307,17 @@ public class PropositionCard extends Div {
 
     private void showEntityDialog(NamedEntity entity) {
         var dialog = new Dialog();
-        dialog.setHeaderTitle(entity.getName());
         dialog.setWidth("640px");
         dialog.setCloseOnEsc(true);
         dialog.setCloseOnOutsideClick(true);
-        dialog.add(new EntityPanel(entity, relatedPropositionsLoader));
-        dialog.getFooter().add(new Button("Close", e -> dialog.close()));
+        dialog.getElement().setProperty("overlayClass", "entity-360-dialog");
+
+        var panel = new EntityPanel(entity, relatedPropositionsLoader);
+        dialog.add(panel);
+
+        // Add Esc-to-close shortcut (similar to other dialogs in this card)
+        Shortcuts.addShortcutListener(dialog, dialog::close, Key.ESCAPE);
+
         dialog.open();
     }
 
