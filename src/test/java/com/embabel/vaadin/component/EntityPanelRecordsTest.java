@@ -52,18 +52,18 @@ class EntityPanelRecordsTest {
 
     @Test
     void rendersAllNonEmptySectionsFromRelatedRecords() {
-        var records = new RelatedRecords(
+        var records = new EntityPanel.RelatedRecords(
                 List.of("ben.blossom@photonix.example", "Robotics Engineer II"),
                 List.of(
-                        new RelatedItem("Alice Chen", "Team lead"),
-                        new RelatedItem("Bob Smith", "Colleague")
+                        new EntityPanel.RelatedItem("Alice Chen", "Team lead"),
+                        new EntityPanel.RelatedItem("Bob Smith", "Colleague")
                 ),
-                List.of(new RelatedItem("Photonix Robotics", "Employer")),
+                List.of(new EntityPanel.RelatedItem("Photonix Robotics", "Employer")),
                 List.of(
-                        new RelatedItem("confirming: switching the team standup to async", "Jun 21"),
-                        new RelatedItem("floor relocation — new desk assignment", "Jun 10")
+                        new EntityPanel.RelatedItem("confirming: switching the team standup to async", "Jun 21"),
+                        new EntityPanel.RelatedItem("floor relocation — new desk assignment", "Jun 10")
                 ),
-                List.of(new RelatedItem("eng-robotics weekly standup", "Recurring")),
+                List.of(new EntityPanel.RelatedItem("eng-robotics weekly standup", "Recurring")),
                 List.of("WORKS_FOR Photonix Robotics", "HAS_EMAIL ben.blossom@photonix.example", "ATTENDS eng-robotics standup")
         );
 
@@ -114,10 +114,10 @@ class EntityPanelRecordsTest {
     @Test
     void rendersOnlyNonEmptySections() {
         // Only organizations, no facts, people, emails, meetings, or chips
-        var records = new RelatedRecords(
+        var records = new EntityPanel.RelatedRecords(
                 List.of(),
                 List.of(),
-                List.of(new RelatedItem("Acme Corp", "Client")),
+                List.of(new EntityPanel.RelatedItem("Acme Corp", "Client")),
                 List.of(),
                 List.of(),
                 List.of()
@@ -147,7 +147,7 @@ class EntityPanelRecordsTest {
 
     @Test
     void rendersContactFactsAndEdgeChipsOnly() {
-        var records = new RelatedRecords(
+        var records = new EntityPanel.RelatedRecords(
                 List.of("fact1@example.com", "Fact 2"),
                 List.of(),
                 List.of(),
@@ -176,7 +176,7 @@ class EntityPanelRecordsTest {
 
     @Test
     void rendersNoSectionsWhenAllEmpty() {
-        var records = new RelatedRecords(
+        var records = new EntityPanel.RelatedRecords(
                 List.of(),
                 List.of(),
                 List.of(),
@@ -235,9 +235,9 @@ class EntityPanelRecordsTest {
 
     @Test
     void relatedSectionsStartCollapsed() {
-        var records = new RelatedRecords(
+        var records = new EntityPanel.RelatedRecords(
                 List.of("fact1"),
-                List.of(new RelatedItem("Alice", "Colleague")),
+                List.of(new EntityPanel.RelatedItem("Alice", "Colleague")),
                 List.of(),
                 List.of(),
                 List.of(),
@@ -260,9 +260,9 @@ class EntityPanelRecordsTest {
 
     @Test
     void relatedItemsRenderWithTitleAndSubtitle() {
-        var records = new RelatedRecords(
+        var records = new EntityPanel.RelatedRecords(
                 List.of(),
-                List.of(new RelatedItem("Alice Chen", "Senior Engineer")),
+                List.of(new EntityPanel.RelatedItem("Alice Chen", "Senior Engineer")),
                 List.of(),
                 List.of(),
                 List.of(),
