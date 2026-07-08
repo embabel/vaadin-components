@@ -50,10 +50,14 @@ class PropositionsPanelScoredModeTest {
     private final Function<String, NamedEntity> entityResolver = id -> null;
 
     private Proposition prop(String id, PropositionStatus status) {
+        return prop(id, SUBJECT_TEXT, status);
+    }
+
+    private Proposition prop(String id, String text, PropositionStatus status) {
         return Proposition.create(
                 id,
                 CTX,
-                SUBJECT_TEXT,
+                text,
                 List.of(),
                 0.9,
                 0.0,
@@ -78,8 +82,8 @@ class PropositionsPanelScoredModeTest {
         var repo = mockRepo();
         var panel = new PropositionsPanel(repo, entityResolver);
 
-        var p1 = prop("p-1", PropositionStatus.ACTIVE);
-        var p2 = prop("p-2", PropositionStatus.ACTIVE);
+        var p1 = prop("p-1", "Jim lives in Brisbane", PropositionStatus.ACTIVE);
+        var p2 = prop("p-2", "Ada wrote the first program", PropositionStatus.ACTIVE);
         var result1 = mockSimilarityResult(p1, 0.95);
         var result2 = mockSimilarityResult(p2, 0.87);
         var initialResults = List.of(result1, result2);
