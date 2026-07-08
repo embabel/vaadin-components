@@ -78,6 +78,7 @@ public class PropositionsPanel extends VerticalLayout {
     private Consumer<Proposition> onEdit;
     private LineageProvider lineageProvider;
     private Function<String, List<Proposition>> relatedPropositionsLoader;
+    private Function<String, RelatedRecords> relatedRecordsLoader;
     private String contextId;
     private boolean clustered = false;
     private Set<PropositionStatus> statusFilter = MemoryView.ACTIVE.statuses;
@@ -542,6 +543,7 @@ public class PropositionsPanel extends VerticalLayout {
         var card = new PropositionCard(prop, entityResolver, collapseExplanationProvider);
         card.setLineageProvider(lineageProvider);
         card.setRelatedPropositionsLoader(relatedPropositionsLoader);
+        card.setRelatedRecordsLoader(relatedRecordsLoader);
         if (onDelete != null) {
             card.setOnDelete(p -> {
                 onDelete.accept(p.getId());
@@ -586,6 +588,17 @@ public class PropositionsPanel extends VerticalLayout {
      */
     public void setRelatedPropositionsLoader(Function<String, List<Proposition>> relatedPropositionsLoader) {
         this.relatedPropositionsLoader = relatedPropositionsLoader;
+    }
+
+    /**
+     * Give entity dialogs additional related-records sections (contact facts, people, orgs,
+     * emails, meetings, edge chips). When set, entity panels load and display these sections.
+     *
+     * @param relatedRecordsLoader looks up RelatedRecords by entity id,
+     *                             or null to omit related records
+     */
+    public void setRelatedRecordsLoader(Function<String, RelatedRecords> relatedRecordsLoader) {
+        this.relatedRecordsLoader = relatedRecordsLoader;
     }
 
     public void setContextId(String contextId) {
