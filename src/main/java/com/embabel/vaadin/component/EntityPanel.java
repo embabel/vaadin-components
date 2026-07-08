@@ -30,11 +30,11 @@ import java.util.function.Function;
 
 /**
  * Carrier for related records sections: contact facts, related entities (people, orgs,
- * emails, meetings), and edge relationship chips.
+ * emails, meetings), and edge relationship chips. Propositions are handled separately
+ * via the relatedPropositionsLoader constructor parameter.
  */
 record RelatedRecords(
         List<String> contactFacts,
-        List<RelatedItem> propositions,
         List<RelatedItem> people,
         List<RelatedItem> organizations,
         List<RelatedItem> emails,

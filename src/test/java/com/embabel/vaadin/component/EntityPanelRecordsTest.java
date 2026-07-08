@@ -54,7 +54,6 @@ class EntityPanelRecordsTest {
     void rendersAllNonEmptySectionsFromRelatedRecords() {
         var records = new RelatedRecords(
                 List.of("ben.blossom@photonix.example", "Robotics Engineer II"),
-                List.of(),
                 List.of(
                         new RelatedItem("Alice Chen", "Team lead"),
                         new RelatedItem("Bob Smith", "Colleague")
@@ -114,9 +113,8 @@ class EntityPanelRecordsTest {
 
     @Test
     void rendersOnlyNonEmptySections() {
-        // Only organizations, no people, emails, meetings, or chips
+        // Only organizations, no facts, people, emails, meetings, or chips
         var records = new RelatedRecords(
-                List.of(),
                 List.of(),
                 List.of(),
                 List.of(new RelatedItem("Acme Corp", "Client")),
@@ -155,7 +153,6 @@ class EntityPanelRecordsTest {
                 List.of(),
                 List.of(),
                 List.of(),
-                List.of(),
                 List.of("WORKS_FOR BigCorp")
         );
 
@@ -180,7 +177,6 @@ class EntityPanelRecordsTest {
     @Test
     void rendersNoSectionsWhenAllEmpty() {
         var records = new RelatedRecords(
-                List.of(),
                 List.of(),
                 List.of(),
                 List.of(),
@@ -241,7 +237,6 @@ class EntityPanelRecordsTest {
     void relatedSectionsStartCollapsed() {
         var records = new RelatedRecords(
                 List.of("fact1"),
-                List.of(),
                 List.of(new RelatedItem("Alice", "Colleague")),
                 List.of(),
                 List.of(),
@@ -266,7 +261,6 @@ class EntityPanelRecordsTest {
     @Test
     void relatedItemsRenderWithTitleAndSubtitle() {
         var records = new RelatedRecords(
-                List.of(),
                 List.of(),
                 List.of(new RelatedItem("Alice Chen", "Senior Engineer")),
                 List.of(),
