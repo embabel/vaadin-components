@@ -33,6 +33,9 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.select.SelectVariant;
 
+import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.dom.Element;
+
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -99,6 +102,9 @@ public class PropositionsPanel extends VerticalLayout {
         setPadding(false);
         setSpacing(true);
         setSizeFull();
+
+        // Add component-scoped CSS styling for scored mode cards with relevance bars and dedup badges
+        injectScoredModeStyles();
 
         var headerLayout = new HorizontalLayout();
         headerLayout.setAlignItems(Alignment.CENTER);
@@ -211,34 +217,126 @@ public class PropositionsPanel extends VerticalLayout {
 
         for (var group : dedupMap.values()) {
             var result = group.getSurvivor();
-            var wrapper = new HorizontalLayout();
-            wrapper.setWidthFull();
-            wrapper.setAlignItems(Alignment.CENTER);
-            wrapper.setPadding(false);
-            wrapper.setSpacing(false);
+            var cardContainer = new Div();
+            cardContainer.addClassName("scored-card-wrapper");
 
             var card = createCard(result.getMatch());
+            card.addClassName("scored-card-content");
+            cardContainer.add(card);
 
-            var scorePct = (int) Math.round(result.getScore() * 100);
-            var scoreBadge = new Span(scorePct + "%");
-            scoreBadge.addClassName("similarity-badge");
-            if (scorePct >= 90) scoreBadge.addClassName("score-high");
-            else if (scorePct >= 80) scoreBadge.addClassName("score-medium");
-            else scoreBadge.addClassName("score-low");
+            // Add relevance bar + score in meta-row
+            double score = result.getScore();
+            var metaRow = new Div();
+            metaRow.addClassName("scored-meta-row");
 
-            wrapper.add(card, scoreBadge);
+            var relBar = new Div();
+            relBar.addClassName("relevance-bar");
+            var barFill = new Span();
+            int scorePct = (int) Math.round(score * 100);
+            barFill.getElement().getStyle().set("width", scorePct + "%");
+            relBar.add(barFill);
 
-            // Add dedup badge if this survivor collapsed other results.
+            var scoreDisplay = new Span(String.format("%.2f", score));
+            scoreDisplay.addClassName("relevance-score");
+
+            metaRow.add(relBar, scoreDisplay);
+            cardContainer.add(metaRow);
+
+            // Add dedup badge if this survivor collapsed other results (positioned absolutely via CSS)
             int collapsedCount = group.getCollapsedCount();
             if (collapsedCount > 0) {
                 var dedupBadge = new Span("+" + collapsedCount + " similar");
                 dedupBadge.addClassName("dedup-collapsed-badge");
-                wrapper.add(dedupBadge);
+                cardContainer.add(dedupBadge);
             }
 
-            wrapper.setFlexGrow(1, card);
-            propositionsContent.add(wrapper);
+            // Add hidden similarity-badge to preserve any backward compatibility
+            var scoreBadge = new Span(scorePct + "%");
+            scoreBadge.addClassName("similarity-badge");
+            cardContainer.add(scoreBadge);
+
+            propositionsContent.add(cardContainer);
         }
+    }
+
+    /** Inject CSS styling for scored mode cards with relevance bars and dedup badges. */
+    private void injectScoredModeStyles() {
+        String css = """
+            .scored-card-wrapper {
+              position: relative;
+              border: 1px solid var(--lumo-contrast-20pct);
+              border-radius: var(--lumo-border-radius-m);
+              background: var(--lumo-base-color);
+              padding: 10px 11px;
+              margin-bottom: 8px;
+            }
+
+            .scored-card-wrapper .proposition-card {
+              background: transparent;
+              border: none;
+              padding: 0;
+              margin-bottom: 0;
+            }
+
+            .scored-card-wrapper .proposition-card:hover {
+              border-color: transparent;
+            }
+
+            .scored-card-content {
+              flex: 1;
+            }
+
+            .scored-meta-row {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              margin-top: 7px;
+            }
+
+            .relevance-bar {
+              flex: 1;
+              height: 5px;
+              border-radius: 3px;
+              background: var(--lumo-contrast-10pct);
+              overflow: hidden;
+            }
+
+            .relevance-bar > span {
+              display: block;
+              height: 100%;
+              background: var(--lumo-primary-color);
+              border-radius: 3px;
+            }
+
+            .relevance-score {
+              font-size: 10.5px;
+              color: var(--lumo-secondary-text-color);
+              font-variant-numeric: tabular-nums;
+              width: 30px;
+              text-align: right;
+            }
+
+            .dedup-collapsed-badge {
+              position: absolute;
+              top: 8px;
+              right: 9px;
+              font-size: 9.5px;
+              font-weight: 700;
+              padding: 1px 6px;
+              border-radius: 999px;
+              background: var(--lumo-warning-color);
+              color: white;
+              opacity: 0.9;
+            }
+
+            .similarity-badge {
+              display: none;
+            }
+            """;
+
+        Element styleElement = new Element("style");
+        styleElement.setText(css);
+        getElement().appendVirtualChild(styleElement);
     }
 
     /** Normalize proposition text for dedup comparison: trim, lowercase, collapse whitespace, strip trailing period. */
