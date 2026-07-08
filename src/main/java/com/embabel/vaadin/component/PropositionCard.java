@@ -34,6 +34,7 @@ import com.vaadin.flow.component.textfield.TextArea;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -56,6 +57,7 @@ public class PropositionCard extends Div {
     private Button lineageBadge;
     private Function<String, java.util.List<Proposition>> relatedPropositionsLoader;
     private Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader;
+    private BiConsumer<String, String> onUndoMember;
 
     /**
      * Convenience constructor for callers that don't explain collapses.
@@ -294,6 +296,16 @@ public class PropositionCard extends Div {
         this.relatedRecordsLoader = relatedRecordsLoader;
     }
 
+    /**
+     * Set the handler to invoke when an "Undo this merge" button is clicked in the lineage section.
+     *
+     * @param onUndoMember callback receiving (survivorId, retiredMemberId) when undo is clicked,
+     *                     or null to disable undo functionality
+     */
+    public void setOnUndoMember(BiConsumer<String, String> onUndoMember) {
+        this.onUndoMember = onUndoMember;
+    }
+
     private Button createLineageBadge(LineageProvider provider) {
         var badge = new Button("Lineage", VaadinIcon.CONNECT.create());
         badge.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
@@ -311,6 +323,9 @@ public class PropositionCard extends Div {
         Shortcuts.addShortcutListener(dialog, dialog::close, Key.ESCAPE);
 
         var section = new LineageSection(provider);
+        if (onUndoMember != null) {
+            section.setOnUndoMember(onUndoMember);
+        }
         section.show(proposition.getId());
         dialog.add(section);
         dialog.getFooter().add(new Button("Close", e -> dialog.close()));

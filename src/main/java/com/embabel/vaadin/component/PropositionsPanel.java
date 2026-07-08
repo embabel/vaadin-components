@@ -40,6 +40,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -79,6 +80,7 @@ public class PropositionsPanel extends VerticalLayout {
     private LineageProvider lineageProvider;
     private Function<String, List<Proposition>> relatedPropositionsLoader;
     private Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader;
+    private BiConsumer<String, String> onUndoMember;
     private String contextId;
     private boolean clustered = false;
     private Set<PropositionStatus> statusFilter = MemoryView.ACTIVE.statuses;
@@ -544,6 +546,9 @@ public class PropositionsPanel extends VerticalLayout {
         card.setLineageProvider(lineageProvider);
         card.setRelatedPropositionsLoader(relatedPropositionsLoader);
         card.setRelatedRecordsLoader(relatedRecordsLoader);
+        if (onUndoMember != null) {
+            card.setOnUndoMember(onUndoMember);
+        }
         if (onDelete != null) {
             card.setOnDelete(p -> {
                 onDelete.accept(p.getId());
@@ -599,6 +604,16 @@ public class PropositionsPanel extends VerticalLayout {
      */
     public void setRelatedRecordsLoader(Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader) {
         this.relatedRecordsLoader = relatedRecordsLoader;
+    }
+
+    /**
+     * Set the handler to invoke when an "Undo this merge" button is clicked in a lineage section.
+     *
+     * @param onUndoMember callback receiving (survivorId, retiredMemberId) when undo is clicked,
+     *                     or null to disable undo functionality
+     */
+    public void setOnUndoMember(BiConsumer<String, String> onUndoMember) {
+        this.onUndoMember = onUndoMember;
     }
 
     public void setContextId(String contextId) {
