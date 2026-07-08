@@ -246,4 +246,11 @@ public class MemorySection extends VerticalLayout {
     public void setRelatedPropositionsLoader(Function<String, List<Proposition>> relatedPropositionsLoader) {
         propositionsPanel.setRelatedPropositionsLoader(relatedPropositionsLoader);
     }
+
+    /**
+     * Loader for the entity-360 related-records shown when an entity is opened from a memory card.
+     */
+    public void setRelatedRecordsLoader(Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader) {
+        propositionsPanel.setRelatedRecordsLoader(relatedRecordsLoader);
+    }
 }
