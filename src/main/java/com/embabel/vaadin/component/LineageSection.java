@@ -15,6 +15,9 @@
  */
 package com.embabel.vaadin.component;
 
+import com.vaadin.flow.component.ClickEvent;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.Html;
 import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.html.Div;
@@ -22,6 +25,8 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+
+import java.util.function.BiConsumer;
 
 /**
  * Section showing a single proposition's lineage: what it's grounded on, its provenance trail,
@@ -306,9 +311,19 @@ public class LineageSection extends VerticalLayout {
               font-size: 12px;
               padding: 6px 0;
             }
+
+            .lineage-undo-member {
+              font-size: 10px;
+              padding: 2px 6px;
+              margin-left: 6px;
+              vertical-align: middle;
+              height: auto;
+              min-height: auto;
+            }
             """;
 
     private final LineageProvider lineageProvider;
+    private BiConsumer<String, String> onUndoMember;
 
     /**
      * @param lineageProvider looks up lineage for a proposition id
@@ -324,6 +339,15 @@ public class LineageSection extends VerticalLayout {
         if (getElement().getParent() == null) {
             add(new Html("<style>" + STYLES + "</style>"));
         }
+    }
+
+    /**
+     * Sets the callback to invoke when an "Undo this merge" button is clicked for a retired member.
+     *
+     * @param callback receives (survivorId, retiredMemberId) when undo is clicked; may be null to disable
+     */
+    public void setOnUndoMember(BiConsumer<String, String> callback) {
+        this.onUndoMember = callback;
     }
 
     /**
@@ -562,8 +586,19 @@ public class LineageSection extends VerticalLayout {
             text.addClassName("merge-txt");
             var textSpan = new Span(fullText);
             text.add(textSpan);
-            node.add(text);
 
+            // Add undo button if callback is set
+            if (onUndoMember != null) {
+                var undoButton = new Button("Undo");
+                undoButton.addClassName("lineage-undo-member");
+                undoButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+                var survivorId = explanation.survivorId();
+                var retiredId = member.propositionId();
+                undoButton.addClickListener(event -> onUndoMember.accept(survivorId, retiredId));
+                text.add(undoButton);
+            }
+
+            node.add(text);
             chain.add(node);
 
             // Add arrow between nodes (except after last one)
