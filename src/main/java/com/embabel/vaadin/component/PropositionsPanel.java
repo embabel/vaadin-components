@@ -200,7 +200,16 @@ public class PropositionsPanel extends VerticalLayout {
             return;
         }
 
+        // Dedup: normalize text, group by normalized form, keep highest-scored result per group.
+        var dedupMap = new java.util.LinkedHashMap<String, DedupGroup>();
         for (var result : results) {
+            var normalizedText = normalizeText(result.getMatch().getText());
+            dedupMap.computeIfAbsent(normalizedText, k -> new DedupGroup())
+                    .considerResult(result);
+        }
+
+        for (var group : dedupMap.values()) {
+            var result = group.getSurvivor();
             var wrapper = new HorizontalLayout();
             wrapper.setWidthFull();
             wrapper.setAlignItems(Alignment.CENTER);
@@ -217,8 +226,53 @@ public class PropositionsPanel extends VerticalLayout {
             else scoreBadge.addClassName("score-low");
 
             wrapper.add(card, scoreBadge);
+
+            // Add dedup badge if this survivor collapsed other results.
+            int collapsedCount = group.getCollapsedCount();
+            if (collapsedCount > 0) {
+                var dedupBadge = new Span("+" + collapsedCount + " similar");
+                dedupBadge.addClassName("dedup-collapsed-badge");
+                wrapper.add(dedupBadge);
+            }
+
             wrapper.setFlexGrow(1, card);
             propositionsContent.add(wrapper);
+        }
+    }
+
+    /** Normalize proposition text for dedup comparison: trim, lowercase, collapse whitespace, strip trailing period. */
+    private static String normalizeText(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+        return text.trim()
+                .toLowerCase()
+                .replaceAll("\\s+", " ")
+                .replaceAll("\\.$", "");
+    }
+
+    /** Tracks the best result and collapsed count for a normalized text group. */
+    private static class DedupGroup {
+        private SimilarityResult<Proposition> survivor;
+        private int collapsedCount = 0;
+
+        void considerResult(SimilarityResult<Proposition> result) {
+            if (survivor == null || result.getScore() > survivor.getScore()) {
+                if (survivor != null) {
+                    collapsedCount++;
+                }
+                survivor = result;
+            } else {
+                collapsedCount++;
+            }
+        }
+
+        SimilarityResult<Proposition> getSurvivor() {
+            return survivor;
+        }
+
+        int getCollapsedCount() {
+            return collapsedCount;
         }
     }
 
