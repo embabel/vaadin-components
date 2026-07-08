@@ -54,6 +54,7 @@ public class PropositionCard extends Div {
     private final Function<String, NamedEntity> entityResolver;
     private LineageProvider lineageProvider;
     private Button lineageBadge;
+    private Function<String, java.util.List<Proposition>> relatedPropositionsLoader;
 
     /**
      * Convenience constructor for callers that don't explain collapses.
@@ -270,6 +271,17 @@ public class PropositionCard extends Div {
         }
     }
 
+    /**
+     * Give entity dialogs a way to show memories mentioning the entity. When set,
+     * entity panels display a collapsed "Mentioned in N memories" section with those propositions.
+     *
+     * @param relatedPropositionsLoader looks up propositions mentioning an entity id,
+     *                                   or null to omit the related-memories section
+     */
+    public void setRelatedPropositionsLoader(Function<String, java.util.List<Proposition>> relatedPropositionsLoader) {
+        this.relatedPropositionsLoader = relatedPropositionsLoader;
+    }
+
     private Button createLineageBadge(LineageProvider provider) {
         var badge = new Button("Lineage", VaadinIcon.CONNECT.create());
         badge.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
@@ -296,11 +308,10 @@ public class PropositionCard extends Div {
     private void showEntityDialog(NamedEntity entity) {
         var dialog = new Dialog();
         dialog.setHeaderTitle(entity.getName());
-        dialog.setWidth("400px");
+        dialog.setWidth("640px");
         dialog.setCloseOnEsc(true);
         dialog.setCloseOnOutsideClick(true);
-        dialog.addDialogCloseActionListener(e -> dialog.close());
-        dialog.add(new EntityPanel(entity));
+        dialog.add(new EntityPanel(entity, relatedPropositionsLoader));
         dialog.getFooter().add(new Button("Close", e -> dialog.close()));
         dialog.open();
     }
