@@ -317,7 +317,10 @@ public class PropositionCard extends Div {
         dialog.open();
     }
 
-    private void showEntityDialog(NamedEntity entity) {
+    // Package-visible (not private) only so tests can drive the real dialog-opening path
+    // directly, the same way clicking a mention badge does, without needing a browser to
+    // fire the DOM click event.
+    void showEntityDialog(NamedEntity entity) {
         var dialog = new Dialog();
         dialog.setWidth("640px");
         dialog.setCloseOnEsc(true);
