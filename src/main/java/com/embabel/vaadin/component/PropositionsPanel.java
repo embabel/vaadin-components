@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Panel showing the knowledge base of extracted propositions.
@@ -76,6 +77,8 @@ public class PropositionsPanel extends VerticalLayout {
     private String contextId;
     private boolean clustered = false;
     private Set<PropositionStatus> statusFilter = MemoryView.ACTIVE.statuses;
+    private Supplier<List<SimilarityResult<Proposition>>> scoredResultsSupplier;
+    private boolean scoredMode = false;
 
     /**
      * Convenience constructor for callers that don't explain collapses.
@@ -153,6 +156,12 @@ public class PropositionsPanel extends VerticalLayout {
     }
 
     public void refresh() {
+        if (scoredMode) {
+            if (scoredResultsSupplier != null) {
+                showScoredPropositions(scoredResultsSupplier.get());
+            }
+            return;
+        }
         propositionsContent.removeAll();
         if (contextId == null) {
             // No context means nothing to show. Deliberately not a findAll() across every
@@ -175,6 +184,7 @@ public class PropositionsPanel extends VerticalLayout {
      * to show propositions relevant to the current conversation.
      */
     public void showScoredPropositions(List<SimilarityResult<Proposition>> results) {
+        scoredMode = true;
         propositionsContent.removeAll();
         propositionCountSpan.setText("(" + results.size() + " relevant)");
         // Scored results are driven by the caller, not by a context query, so the status
@@ -415,6 +425,11 @@ public class PropositionsPanel extends VerticalLayout {
 
     public void setContextId(String contextId) {
         this.contextId = contextId;
+        this.scoredMode = false;
+    }
+
+    public void setScoredResultsSupplier(Supplier<List<SimilarityResult<Proposition>>> supplier) {
+        this.scoredResultsSupplier = supplier;
     }
 
     public void scheduleRefresh(com.vaadin.flow.component.UI ui, long delayMs) {
