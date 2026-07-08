@@ -55,7 +55,7 @@ public class PropositionCard extends Div {
     private LineageProvider lineageProvider;
     private Button lineageBadge;
     private Function<String, java.util.List<Proposition>> relatedPropositionsLoader;
-    private Function<String, RelatedRecords> relatedRecordsLoader;
+    private Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader;
 
     /**
      * Convenience constructor for callers that don't explain collapses.
@@ -290,7 +290,7 @@ public class PropositionCard extends Div {
      * @param relatedRecordsLoader looks up RelatedRecords by entity id,
      *                             or null to omit related records
      */
-    public void setRelatedRecordsLoader(Function<String, RelatedRecords> relatedRecordsLoader) {
+    public void setRelatedRecordsLoader(Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader) {
         this.relatedRecordsLoader = relatedRecordsLoader;
     }
 

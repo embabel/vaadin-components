@@ -99,10 +99,10 @@ class PropositionCardRecordsTest {
         var ui = withUi();
         try {
             var entity = createEntity();
-            var records = new RelatedRecords(
+            var records = new EntityPanel.RelatedRecords(
                     List.of("alice.chen@acme.example"),
                     List.of(),
-                    List.of(new RelatedItem("Acme Corp", "Employer")),
+                    List.of(new EntityPanel.RelatedItem("Acme Corp", "Employer")),
                     List.of(),
                     List.of(),
                     List.of());

@@ -29,28 +29,28 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * Carrier for related records sections: contact facts, related entities (people, orgs,
- * emails, meetings), and edge relationship chips. Propositions are handled separately
- * via the relatedPropositionsLoader constructor parameter.
- */
-record RelatedRecords(
-        List<String> contactFacts,
-        List<RelatedItem> people,
-        List<RelatedItem> organizations,
-        List<RelatedItem> emails,
-        List<RelatedItem> meetings,
-        List<String> edgeChips
-) {}
-
-/**
- * A related entity: title is the entity name or message, subtitle adds context.
- */
-record RelatedItem(String title, String subtitle) {}
-
-/**
  * Reusable panel displaying a resolved entity with its type, name, and description.
  */
 public class EntityPanel extends Div {
+
+    /**
+     * Carrier for related records sections: contact facts, related entities (people, orgs,
+     * emails, meetings), and edge relationship chips. Propositions are handled separately
+     * via the relatedPropositionsLoader constructor parameter.
+     */
+    public record RelatedRecords(
+            List<String> contactFacts,
+            List<RelatedItem> people,
+            List<RelatedItem> organizations,
+            List<RelatedItem> emails,
+            List<RelatedItem> meetings,
+            List<String> edgeChips
+    ) {}
+
+    /**
+     * A related entity: title is the entity name or message, subtitle adds context.
+     */
+    public record RelatedItem(String title, String subtitle) {}
 
     private final NamedEntity entity;
     private Runnable onClose;

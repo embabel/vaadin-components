@@ -78,7 +78,7 @@ public class PropositionsPanel extends VerticalLayout {
     private Consumer<Proposition> onEdit;
     private LineageProvider lineageProvider;
     private Function<String, List<Proposition>> relatedPropositionsLoader;
-    private Function<String, RelatedRecords> relatedRecordsLoader;
+    private Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader;
     private String contextId;
     private boolean clustered = false;
     private Set<PropositionStatus> statusFilter = MemoryView.ACTIVE.statuses;
@@ -597,7 +597,7 @@ public class PropositionsPanel extends VerticalLayout {
      * @param relatedRecordsLoader looks up RelatedRecords by entity id,
      *                             or null to omit related records
      */
-    public void setRelatedRecordsLoader(Function<String, RelatedRecords> relatedRecordsLoader) {
+    public void setRelatedRecordsLoader(Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader) {
         this.relatedRecordsLoader = relatedRecordsLoader;
     }
 
