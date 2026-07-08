@@ -34,6 +34,7 @@ import java.util.function.Function;
 public class EntityPanel extends Div {
 
     private final NamedEntity entity;
+    private Runnable onClose;
 
     /**
      * Convenience constructor that doesn't explain related memories.
@@ -135,6 +136,11 @@ public class EntityPanel extends Div {
         closeBtn.setText("✕");
         closeBtn.getStyle().set("font-size", "16px");
         closeBtn.getStyle().set("line-height", "1");
+        closeBtn.getElement().addEventListener("click", e -> {
+            if (onClose != null) {
+                onClose.run();
+            }
+        });
 
         headerDiv.add(avatar, headerMain, closeBtn);
         add(headerDiv);
@@ -193,6 +199,15 @@ public class EntityPanel extends Div {
                 .filter(l -> !l.equals(NamedEntityData.ENTITY_LABEL) && !l.equals("Reference"))
                 .findFirst()
                 .orElse(labels.stream().findFirst().orElse(NamedEntityData.ENTITY_LABEL));
+    }
+
+    /**
+     * Set handler to be called when the close button is clicked.
+     *
+     * @param onClose runnable to invoke when user clicks the close X button, or null to disable
+     */
+    public void setOnClose(Runnable onClose) {
+        this.onClose = onClose;
     }
 
     public NamedEntity getEntity() {
