@@ -55,6 +55,7 @@ public class PropositionCard extends Div {
     private LineageProvider lineageProvider;
     private Button lineageBadge;
     private Function<String, java.util.List<Proposition>> relatedPropositionsLoader;
+    private Function<String, RelatedRecords> relatedRecordsLoader;
 
     /**
      * Convenience constructor for callers that don't explain collapses.
@@ -282,6 +283,17 @@ public class PropositionCard extends Div {
         this.relatedPropositionsLoader = relatedPropositionsLoader;
     }
 
+    /**
+     * Give entity dialogs additional related-records sections (contact facts, people, orgs,
+     * emails, meetings, edge chips). When set, entity panels load and display these sections.
+     *
+     * @param relatedRecordsLoader looks up RelatedRecords by entity id,
+     *                             or null to omit related records
+     */
+    public void setRelatedRecordsLoader(Function<String, RelatedRecords> relatedRecordsLoader) {
+        this.relatedRecordsLoader = relatedRecordsLoader;
+    }
+
     private Button createLineageBadge(LineageProvider provider) {
         var badge = new Button("Lineage", VaadinIcon.CONNECT.create());
         badge.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
@@ -314,6 +326,9 @@ public class PropositionCard extends Div {
 
         var panel = new EntityPanel(entity, relatedPropositionsLoader);
         panel.setOnClose(dialog::close);
+        if (relatedRecordsLoader != null) {
+            panel.setRelatedRecords(relatedRecordsLoader);
+        }
         dialog.add(panel);
 
         // Add Esc-to-close shortcut (similar to other dialogs in this card)
