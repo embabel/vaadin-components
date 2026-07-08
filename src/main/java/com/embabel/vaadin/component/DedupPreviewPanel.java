@@ -61,6 +61,7 @@ public class DedupPreviewPanel extends VerticalLayout {
         applyButton = new Button("Apply");
         applyButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
         applyButton.addClassName("dedup-apply");
+        applyButton.getElement().setAttribute("title", "Apply this sweep: retire the duplicates shown, keeping each cluster's survivor");
         applyButton.addClickListener(e -> {
             if (onApply != null) {
                 onApply.run();
@@ -70,6 +71,7 @@ public class DedupPreviewPanel extends VerticalLayout {
         undoButton = new Button("Undo");
         undoButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
         undoButton.addClassName("dedup-undo");
+        undoButton.getElement().setAttribute("title", "Undo the applied sweep: restore the retired duplicates");
         undoButton.addClickListener(e -> {
             if (onUndo != null && current != null) {
                 onUndo.accept(current.runId());
