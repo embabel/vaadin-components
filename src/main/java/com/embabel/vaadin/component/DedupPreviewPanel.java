@@ -333,6 +333,10 @@ public class DedupPreviewPanel extends VerticalLayout {
                 sigRow.getStyle().set("font-size", "var(--lumo-font-size-xs)");
 
                 var sigName = new Span(signal.signal());
+                sigName.addClassName("collapse-signal");
+                if (signal.veto()) {
+                    sigName.addClassName("collapse-signal-veto");
+                }
                 sigName.getStyle().set("color", "var(--lumo-secondary-text-color)");
 
                 var sigBar = new Div();
@@ -357,17 +361,6 @@ public class DedupPreviewPanel extends VerticalLayout {
 
                 sigRow.add(sigName, sigBar, sigVal);
                 popover.add(sigRow);
-
-                // Also add a span with collapse-signal classes for test compatibility
-                var scorePct = (int) Math.round(signal.score() * 100);
-                var reason = signal.explanation() != null ? " — " + signal.explanation() : "";
-                var signalSpan = new Span(signal.signal() + ": " + scorePct + "%" + reason);
-                signalSpan.addClassName("collapse-signal");
-                if (signal.veto()) {
-                    signalSpan.addClassName("collapse-signal-veto");
-                }
-                signalSpan.getStyle().set("display", "none");  // Hide from visual display
-                popover.add(signalSpan);
             }
 
             var verdict = new Div();
@@ -414,16 +407,6 @@ public class DedupPreviewPanel extends VerticalLayout {
         }
 
         return signalsLayout;
-    }
-
-    /**
-     * Helper to find an edge for a given member in a cluster.
-     */
-    private DedupPreview.Edge findEdgeForMember(DedupPreview.Cluster cluster, String memberId) {
-        return cluster.edges().stream()
-                .filter(e -> e.anchorId().equals(memberId) || e.memberId().equals(memberId))
-                .findFirst()
-                .orElse(null);
     }
 
     /**
