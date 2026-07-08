@@ -72,6 +72,7 @@ public class PropositionsPanel extends VerticalLayout {
     private final Button clusterToggle;
     private Consumer<String> onDelete;
     private Consumer<Proposition> onEdit;
+    private LineageProvider lineageProvider;
     private String contextId;
     private boolean clustered = false;
     private Set<PropositionStatus> statusFilter = MemoryView.ACTIVE.statuses;
@@ -376,6 +377,7 @@ public class PropositionsPanel extends VerticalLayout {
 
     private PropositionCard createCard(Proposition prop) {
         var card = new PropositionCard(prop, entityResolver, collapseExplanationProvider);
+        card.setLineageProvider(lineageProvider);
         if (onDelete != null) {
             card.setOnDelete(p -> {
                 onDelete.accept(p.getId());
@@ -399,6 +401,16 @@ public class PropositionsPanel extends VerticalLayout {
 
     public void setOnEdit(Consumer<Proposition> handler) {
         this.onEdit = handler;
+    }
+
+    /**
+     * Give cards a way to trace where a memory came from. When set, each proposition card
+     * offers a "Lineage" affordance that opens the grounding/provenance/collapse trail.
+     *
+     * @param lineageProvider looks up lineage for a proposition id, or null to hide the affordance
+     */
+    public void setLineageProvider(LineageProvider lineageProvider) {
+        this.lineageProvider = lineageProvider;
     }
 
     public void setContextId(String contextId) {

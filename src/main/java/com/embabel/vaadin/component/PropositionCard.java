@@ -18,8 +18,12 @@ package com.embabel.vaadin.component;
 import com.embabel.agent.rag.model.NamedEntity;
 import com.embabel.dice.proposition.EntityMention;
 import com.embabel.dice.proposition.Proposition;
+import com.vaadin.flow.component.Key;
+import com.vaadin.flow.component.Shortcuts;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.Key;
+import com.vaadin.flow.component.Shortcuts;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
@@ -44,9 +48,12 @@ public class PropositionCard extends Div {
     private final Proposition proposition;
     private final Button editButton;
     private final Button deleteButton;
+    private final HorizontalLayout metaLayout;
     private Consumer<Proposition> onDelete;
     private Consumer<Proposition> onEdit;
     private final Function<String, NamedEntity> entityResolver;
+    private LineageProvider lineageProvider;
+    private Button lineageBadge;
 
     /**
      * Convenience constructor for callers that don't explain collapses.
@@ -92,7 +99,7 @@ public class PropositionCard extends Div {
         headerLayout.add(textSpan, editButton, deleteButton);
         headerLayout.setFlexGrow(1, textSpan);
 
-        var metaLayout = new HorizontalLayout();
+        metaLayout = new HorizontalLayout();
         metaLayout.setSpacing(true);
         metaLayout.addClassName("proposition-meta");
 
@@ -172,10 +179,15 @@ public class PropositionCard extends Div {
         var dialog = new Dialog();
         dialog.setHeaderTitle("Why this memory was merged");
         dialog.setWidth("520px");
-        dialog.setCloseOnEsc(true);
         dialog.setCloseOnOutsideClick(true);
-        dialog.addDialogCloseActionListener(e -> dialog.close());
-        dialog.addClassName("collapse-explanation-dialog");
+        // Esc-to-close: the built-in closeOnEsc only fires when focus is inside the overlay, and
+        // this dialog opens over the user drawer, which keeps focus — so Esc lands on the body and
+        // never reaches it. A UI-scoped shortcut tied to the dialog's lifecycle closes it wherever
+        // focus happens to be, and is torn down automatically when the dialog detaches.
+        Shortcuts.addShortcutListener(dialog, dialog::close, Key.ESCAPE);
+        // Class must go on the teleported overlay, not the (hidden) dialog host, so styling
+        // and tests can target the visible dialog.
+        dialog.getElement().setProperty("overlayClass", "collapse-explanation-dialog");
 
         var content = new VerticalLayout();
         content.setPadding(false);
@@ -237,6 +249,48 @@ public class PropositionCard extends Div {
         });
 
         return section;
+    }
+
+    /**
+     * Give this card a way to trace where its memory came from. When set, a "Lineage" badge
+     * appears offering a dialog with the grounding/provenance/collapse trail; when cleared, the
+     * badge is removed.
+     *
+     * @param lineageProvider looks up lineage for a proposition id, or null to hide the affordance
+     */
+    public void setLineageProvider(LineageProvider lineageProvider) {
+        this.lineageProvider = lineageProvider;
+        if (lineageBadge != null) {
+            metaLayout.remove(lineageBadge);
+            lineageBadge = null;
+        }
+        if (lineageProvider != null) {
+            lineageBadge = createLineageBadge(lineageProvider);
+            metaLayout.add(lineageBadge);
+        }
+    }
+
+    private Button createLineageBadge(LineageProvider provider) {
+        var badge = new Button("Lineage", VaadinIcon.CONNECT.create());
+        badge.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+        badge.addClassName("lineage-badge");
+        badge.getElement().setAttribute("title", "Show where this memory came from");
+        badge.addClickListener(e -> showLineageDialog(provider));
+        return badge;
+    }
+
+    private void showLineageDialog(LineageProvider provider) {
+        var dialog = new Dialog();
+        dialog.setHeaderTitle("Lineage");
+        dialog.setWidth("520px");
+        dialog.getElement().setProperty("overlayClass", "lineage-dialog");
+        Shortcuts.addShortcutListener(dialog, dialog::close, Key.ESCAPE);
+
+        var section = new LineageSection(provider);
+        section.show(proposition.getId());
+        dialog.add(section);
+        dialog.getFooter().add(new Button("Close", e -> dialog.close()));
+        dialog.open();
     }
 
     private void showEntityDialog(NamedEntity entity) {
