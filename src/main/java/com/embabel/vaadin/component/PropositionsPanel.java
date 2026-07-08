@@ -74,6 +74,7 @@ public class PropositionsPanel extends VerticalLayout {
     private Consumer<String> onDelete;
     private Consumer<Proposition> onEdit;
     private LineageProvider lineageProvider;
+    private Function<String, List<Proposition>> relatedPropositionsLoader;
     private String contextId;
     private boolean clustered = false;
     private Set<PropositionStatus> statusFilter = MemoryView.ACTIVE.statuses;
@@ -442,6 +443,7 @@ public class PropositionsPanel extends VerticalLayout {
     private PropositionCard createCard(Proposition prop) {
         var card = new PropositionCard(prop, entityResolver, collapseExplanationProvider);
         card.setLineageProvider(lineageProvider);
+        card.setRelatedPropositionsLoader(relatedPropositionsLoader);
         if (onDelete != null) {
             card.setOnDelete(p -> {
                 onDelete.accept(p.getId());
@@ -475,6 +477,17 @@ public class PropositionsPanel extends VerticalLayout {
      */
     public void setLineageProvider(LineageProvider lineageProvider) {
         this.lineageProvider = lineageProvider;
+    }
+
+    /**
+     * Give entity dialogs a way to show memories mentioning the entity. When set,
+     * entity panels display a collapsed "Mentioned in N memories" section with those propositions.
+     *
+     * @param relatedPropositionsLoader looks up propositions mentioning an entity id,
+     *                                   or null to omit the related-memories section
+     */
+    public void setRelatedPropositionsLoader(Function<String, List<Proposition>> relatedPropositionsLoader) {
+        this.relatedPropositionsLoader = relatedPropositionsLoader;
     }
 
     public void setContextId(String contextId) {
