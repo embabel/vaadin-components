@@ -99,7 +99,7 @@ class PropositionCardLineageTest {
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("expected a dialog to open"));
             assertTrue(dialog.isOpened(), "dialog must be open after clicking the badge");
-            assertEquals("lineage-dialog", dialog.getElement().getProperty("overlayClass"));
+            assertEquals("content-fit-dialog lineage-dialog", dialog.getElement().getProperty("overlayClass"));
         } finally {
             UI.setCurrent(null);
         }
