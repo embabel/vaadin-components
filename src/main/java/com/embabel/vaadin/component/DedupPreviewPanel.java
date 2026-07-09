@@ -19,6 +19,7 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
@@ -37,8 +38,10 @@ public class DedupPreviewPanel extends VerticalLayout {
 
     private final VerticalLayout clustersLayout = new VerticalLayout();
     private final VerticalLayout nonMergesLayout = new VerticalLayout();
+    private final Div emptyStateDiv = new Div();
     private final Button applyButton;
     private final Button undoButton;
+    private final HorizontalLayout actionsLayout;
     private final Map<Div, Div> memberRowToPopoverMap = new HashMap<>();
 
     private Runnable onApply;
@@ -82,11 +85,14 @@ public class DedupPreviewPanel extends VerticalLayout {
             }
         });
 
-        var actions = new HorizontalLayout(applyButton, undoButton);
-        actions.addClassName("dedup-actions");
-        actions.setSpacing(true);
+        actionsLayout = new HorizontalLayout(applyButton, undoButton);
+        actionsLayout.addClassName("dedup-actions");
+        actionsLayout.setSpacing(true);
 
-        add(clustersLayout, nonMergesLayout, actions);
+        emptyStateDiv.addClassName("dedup-empty-state");
+        emptyStateDiv.setVisible(false);
+
+        add(emptyStateDiv, clustersLayout, nonMergesLayout, actionsLayout);
     }
 
     /**
@@ -99,19 +105,79 @@ public class DedupPreviewPanel extends VerticalLayout {
         this.current = preview;
         clustersLayout.removeAll();
         nonMergesLayout.removeAll();
+        emptyStateDiv.removeAll();
 
-        for (var cluster : preview.clusters()) {
-            clustersLayout.add(renderCluster(cluster));
-        }
+        boolean hasClusters = !preview.clusters().isEmpty();
+        boolean hasNonMerges = !preview.nonMerges().isEmpty();
 
-        if (!preview.nonMerges().isEmpty()) {
-            var heading = new Span("Did not merge");
-            heading.addClassName("dedup-nonmerge-heading");
-            nonMergesLayout.add(heading);
-            for (var edge : preview.nonMerges()) {
-                nonMergesLayout.add(renderNonMerge(edge));
+        if (!hasClusters && !hasNonMerges) {
+            // Empty state: no clusters and no non-merges
+            renderEmptyState();
+            emptyStateDiv.setVisible(true);
+            actionsLayout.setVisible(false);
+        } else {
+            emptyStateDiv.setVisible(false);
+            actionsLayout.setVisible(true);
+
+            // Render clusters if present
+            for (var cluster : preview.clusters()) {
+                clustersLayout.add(renderCluster(cluster));
+            }
+
+            // Render non-merges if present
+            if (hasNonMerges) {
+                var heading = new Span("Did not merge");
+                heading.addClassName("dedup-nonmerge-heading");
+                nonMergesLayout.add(heading);
+
+                // Show "No merges proposed" note if there are no clusters but there are non-merges
+                if (!hasClusters) {
+                    var noMergesNote = new Span("No merges proposed");
+                    noMergesNote.addClassName("dedup-no-merges-note");
+                    noMergesNote.getStyle().set("font-size", "var(--lumo-font-size-xs)");
+                    noMergesNote.getStyle().set("color", "var(--lumo-secondary-text-color)");
+                    noMergesNote.getStyle().set("margin-bottom", "var(--lumo-space-xs)");
+                    nonMergesLayout.add(noMergesNote);
+                }
+
+                for (var edge : preview.nonMerges()) {
+                    nonMergesLayout.add(renderNonMerge(edge));
+                }
             }
         }
+    }
+
+    private void renderEmptyState() {
+        // Container for centered empty state content
+        var container = new VerticalLayout();
+        container.setAlignItems(FlexComponent.Alignment.CENTER);
+        container.setJustifyContentMode(FlexComponent.JustifyContentMode.CENTER);
+        container.setPadding(false);
+        container.setSpacing(false);
+        container.getStyle().set("min-height", "200px");
+        container.getStyle().set("gap", "var(--lumo-space-m)");
+
+        // Icon or dot (muted)
+        var iconDiv = new Div();
+        iconDiv.setText("•");
+        iconDiv.getStyle().set("font-size", "32px");
+        iconDiv.getStyle().set("color", "var(--lumo-secondary-text-color)");
+        container.add(iconDiv);
+
+        // Primary line
+        var primaryLine = new Span("No merge candidates");
+        primaryLine.getStyle().set("font-size", "var(--lumo-font-size-m)");
+        primaryLine.getStyle().set("font-weight", "500");
+        primaryLine.getStyle().set("color", "var(--lumo-body-text-color)");
+        container.add(primaryLine);
+
+        // Secondary line
+        var secondaryLine = new Span("Your memories look distinct — nothing to collapse right now.");
+        secondaryLine.getStyle().set("font-size", "var(--lumo-font-size-s)");
+        secondaryLine.getStyle().set("color", "var(--lumo-secondary-text-color)");
+        container.add(secondaryLine);
+
+        emptyStateDiv.add(container);
     }
 
     /**
