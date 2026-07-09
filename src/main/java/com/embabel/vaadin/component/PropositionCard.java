@@ -37,6 +37,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Card component displaying a single proposition with its metadata.
@@ -58,6 +59,8 @@ public class PropositionCard extends Div {
     private Function<String, java.util.List<Proposition>> relatedPropositionsLoader;
     private Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader;
     private BiConsumer<String, String> onUndoMember;
+    private Consumer<String> onOpenRef;
+    private Predicate<String> openable;
 
     /**
      * Convenience constructor for callers that don't explain collapses.
@@ -313,6 +316,24 @@ public class PropositionCard extends Div {
         this.onUndoMember = onUndoMember;
     }
 
+    /**
+     * Set the handler to invoke when a grounding or provenance ref is opened in the lineage section.
+     *
+     * @param onOpenRef callback receiving the ref string when opened, or null to disable
+     */
+    public void setOnOpenRef(Consumer<String> onOpenRef) {
+        this.onOpenRef = onOpenRef;
+    }
+
+    /**
+     * Set the predicate to determine which refs are openable in the lineage section.
+     *
+     * @param openable predicate returning true if a ref should be openable, or null if all are openable
+     */
+    public void setOpenable(Predicate<String> openable) {
+        this.openable = openable;
+    }
+
     private Button createLineageBadge(LineageProvider provider) {
         var badge = new Button("Lineage", VaadinIcon.CONNECT.create());
         badge.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
@@ -332,6 +353,12 @@ public class PropositionCard extends Div {
         var section = new LineageSection(provider);
         if (onUndoMember != null) {
             section.setOnUndoMember(onUndoMember);
+        }
+        if (onOpenRef != null) {
+            section.setOnOpenRef(onOpenRef);
+        }
+        if (openable != null) {
+            section.setOpenable(openable);
         }
         section.show(proposition.getId());
         dialog.add(section);
