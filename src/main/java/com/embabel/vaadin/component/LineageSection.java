@@ -326,6 +326,7 @@ public class LineageSection extends VerticalLayout {
 
     private final LineageProvider lineageProvider;
     private BiConsumer<String, String> onUndoMember;
+    private BiConsumer<String, String> onAfterUndo;
     // The proposition currently on show, so an Undo can re-render this same lineage
     // against fresh data once the retired member has been restored.
     private String currentPropositionId;
@@ -355,6 +356,24 @@ public class LineageSection extends VerticalLayout {
      */
     public void setOnUndoMember(BiConsumer<String, String> callback) {
         this.onUndoMember = callback;
+    }
+
+    /**
+     * Sets the callback fired once an undo has fully landed: the backend restore already ran and
+     * this section has already re-rendered from fresh lineage data. The host uses this to do
+     * things that only make sense once the restore is visible on screen — refreshing its own
+     * memory list, opening the restored memory in edit mode, and so on.
+     * <p>
+     * Runs strictly after {@code onUndoMember} and after the re-render, so by the time this
+     * fires the section's own view already reflects the restored member. It does not run at all
+     * if {@code onUndoMember} throws — nothing was actually restored, so there's nothing to
+     * signal.
+     *
+     * @param handler receives (survivorId, retiredMemberId) after undo has landed and the
+     *                 section has re-rendered; may be null to disable
+     */
+    public void setOnAfterUndo(BiConsumer<String, String> handler) {
+        this.onAfterUndo = handler;
     }
 
     /**
@@ -651,10 +670,18 @@ public class LineageSection extends VerticalLayout {
                 var survivorId = explanation.survivorId();
                 var retiredId = member.propositionId();
                 undoButton.addClickListener(event -> {
+                    // Order matters here: run the backend restore first, then re-render by
+                    // calling show() again — which re-queries lineageProvider, so we're never
+                    // just re-painting a stale snapshot — and only once that fresh render is on
+                    // screen do we tell the host the undo landed. If the restore itself throws,
+                    // we don't re-render and we don't fire onAfterUndo: nothing actually changed,
+                    // so nothing should look like it changed. We let the exception propagate
+                    // rather than swallow it, so the host finds out the restore failed.
                     onUndoMember.accept(survivorId, retiredId);
-                    // Re-render against fresh lineage so the restored member drops out of the
-                    // collapse history immediately, instead of leaving a stale snapshot on screen.
                     show(currentPropositionId);
+                    if (onAfterUndo != null) {
+                        onAfterUndo.accept(survivorId, retiredId);
+                    }
                 });
                 text.add(undoButton);
             }
