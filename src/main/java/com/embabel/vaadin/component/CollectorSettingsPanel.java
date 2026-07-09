@@ -33,9 +33,10 @@ import com.vaadin.flow.dom.Element;
 import java.util.function.Consumer;
 
 /**
- * Pure Vaadin view for collector/dedup settings, matching the design mock.
- * Exposes real properties only (enabled, dryRun, matcher, similarityThreshold, cron).
- * Multi-signal weight sliders are rendered disabled with "coming soon" note.
+ * Pure Vaadin view for collector/dedup settings. Exposes the collector's real knobs:
+ * enabled, dryRun, matcher, similarityThreshold, cron, and — when the matcher is
+ * multi-signal — the five per-signal weights. A null weight means "use the collector's
+ * own default"; polarity veto is a fixed gate, shown as an indicator rather than a slider.
  */
 public class CollectorSettingsPanel extends VerticalLayout {
 
@@ -50,16 +51,7 @@ public class CollectorSettingsPanel extends VerticalLayout {
             Double entityOverlap,
             Double groundingOverlap,
             Double provenanceOverlap
-    ) {
-        /**
-         * Settings without per-signal weights — every weight stays null, meaning "use the
-         * collector's own default". Keeps existing callers compiling as the record grows.
-         */
-        public CollectorSettings(boolean enabled, boolean dryRun, String matcher,
-                                 double similarityThreshold, String cron) {
-            this(enabled, dryRun, matcher, similarityThreshold, cron, null, null, null, null, null);
-        }
-    }
+    ) {}
 
     private Consumer<CollectorSettings> onSave;
 
