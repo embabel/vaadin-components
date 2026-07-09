@@ -43,6 +43,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -81,6 +82,8 @@ public class PropositionsPanel extends VerticalLayout {
     private Function<String, List<Proposition>> relatedPropositionsLoader;
     private Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader;
     private BiConsumer<String, String> onUndoMember;
+    private Consumer<String> onOpenRef;
+    private Predicate<String> openable;
     private String contextId;
     private boolean clustered = false;
     private Set<PropositionStatus> statusFilter = MemoryView.ACTIVE.statuses;
@@ -558,6 +561,12 @@ public class PropositionsPanel extends VerticalLayout {
         if (onUndoMember != null) {
             card.setOnUndoMember(onUndoMember);
         }
+        if (onOpenRef != null) {
+            card.setOnOpenRef(onOpenRef);
+        }
+        if (openable != null) {
+            card.setOpenable(openable);
+        }
         if (onDelete != null) {
             card.setOnDelete(p -> {
                 onDelete.accept(p.getId());
@@ -623,6 +632,25 @@ public class PropositionsPanel extends VerticalLayout {
      */
     public void setOnUndoMember(BiConsumer<String, String> onUndoMember) {
         this.onUndoMember = onUndoMember;
+    }
+
+    /**
+     * Set the handler to invoke when an Open button is clicked on a grounding/provenance ref in a lineage section.
+     *
+     * @param onOpenRef callback receiving the ref string when an Open button is clicked,
+     *                  or null to disable the Open affordance
+     */
+    public void setOnOpenRef(Consumer<String> onOpenRef) {
+        this.onOpenRef = onOpenRef;
+    }
+
+    /**
+     * Set the predicate to filter which refs show an Open button in lineage sections.
+     *
+     * @param openable predicate testing whether a ref is openable, or null to allow all refs
+     */
+    public void setOpenable(Predicate<String> openable) {
+        this.openable = openable;
     }
 
     public void setContextId(String contextId) {
