@@ -57,6 +57,7 @@ public class PropositionCard extends Div {
     private Function<String, java.util.List<Proposition>> relatedPropositionsLoader;
     private Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader;
     private BiConsumer<String, String> onUndoMember;
+    private BiConsumer<String, String> onAfterUndo;
     private Consumer<String> onOpenRef;
     private Predicate<String> openable;
 
@@ -317,6 +318,18 @@ public class PropositionCard extends Div {
     }
 
     /**
+     * Set the handler to invoke once an undo has fully landed in the lineage section — the
+     * backend restore ran and the section already re-rendered from fresh data. See
+     * {@link LineageSection#setOnAfterUndo(BiConsumer)} for the exact ordering guarantee.
+     *
+     * @param onAfterUndo callback receiving (survivorId, retiredMemberId) after undo has landed,
+     *                    or null to disable
+     */
+    public void setOnAfterUndo(BiConsumer<String, String> onAfterUndo) {
+        this.onAfterUndo = onAfterUndo;
+    }
+
+    /**
      * Set the handler to invoke when a grounding or provenance ref is opened in the lineage section.
      *
      * @param onOpenRef callback receiving the ref string when opened, or null to disable
@@ -355,6 +368,9 @@ public class PropositionCard extends Div {
         var section = new LineageSection(provider);
         if (onUndoMember != null) {
             section.setOnUndoMember(onUndoMember);
+        }
+        if (onAfterUndo != null) {
+            section.setOnAfterUndo(onAfterUndo);
         }
         if (onOpenRef != null) {
             section.setOnOpenRef(onOpenRef);
