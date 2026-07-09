@@ -15,6 +15,7 @@
  */
 package com.embabel.vaadin.component;
 
+import com.embabel.vaadin.component.Dialogs;
 import com.embabel.chat.Conversation;
 import com.embabel.chat.Message;
 import com.embabel.chat.MessageRole;
@@ -53,10 +54,7 @@ public class TranscriptButton extends Button {
 
         var dialog = new Dialog();
         dialog.setHeaderTitle("Transcript");
-        dialog.setWidth("600px");
-        dialog.setHeight("500px");
-        dialog.setResizable(true);
-        dialog.setDraggable(true);
+        Dialogs.resizableContentFit(dialog);
 
         var content = new VerticalLayout();
         content.setPadding(false);

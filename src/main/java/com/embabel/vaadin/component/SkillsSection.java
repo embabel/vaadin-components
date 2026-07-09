@@ -15,6 +15,7 @@
  */
 package com.embabel.vaadin.component;
 
+import com.embabel.vaadin.component.Dialogs;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -107,7 +108,7 @@ public class SkillsSection extends VerticalLayout {
     private void showCreateDialog(SkillCreateHandler onCreate) {
         var dialog = new Dialog();
         dialog.setHeaderTitle("Create Skill");
-        dialog.setWidth("500px");
+        Dialogs.resizableContentFit(dialog);
 
         var layout = new VerticalLayout();
         layout.setPadding(false);
