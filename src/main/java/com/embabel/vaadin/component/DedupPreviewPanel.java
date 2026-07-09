@@ -24,8 +24,10 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -42,11 +44,21 @@ public class DedupPreviewPanel extends VerticalLayout {
     private final Button applyButton;
     private final Button undoButton;
     private final HorizontalLayout actionsLayout;
+    private final HorizontalLayout toolbarLayout = new HorizontalLayout();
+    private final HorizontalLayout footerLayout = new HorizontalLayout();
+    private final Div modePill = new Div();
+    private final Button rescanButton = new Button("Rescan");
+    private final Span footerLabel = new Span();
     private final Map<Div, Div> memberRowToPopoverMap = new HashMap<>();
+    private final Set<String> appliedClusterIds = new HashSet<>();
 
     private Runnable onApply;
     private Consumer<String> onUndo;
+    private Runnable onRescan;
     private DedupPreview current;
+    private boolean dryRunMode = true;
+    private String runMetaLabel;
+    private double matchThreshold = Double.NaN;
 
     /**
      * Builds an empty panel. Call {@link #show(DedupPreview)} to populate it with a sweep preview.
@@ -57,13 +69,41 @@ public class DedupPreviewPanel extends VerticalLayout {
         setSpacing(true);
         getStyle().set("padding", "calc(var(--lumo-space-m) * 1.5)");
 
-        clustersLayout.setPadding(false);
-        clustersLayout.setSpacing(true);
-        clustersLayout.addClassName("dedup-clusters");
+        // Toolbar
+        toolbarLayout.addClassName("dedup-toolbar");
+        toolbarLayout.setWidthFull();
+        toolbarLayout.setAlignItems(FlexComponent.Alignment.CENTER);
+        toolbarLayout.setSpacing(true);
+        toolbarLayout.setVisible(false);
 
-        nonMergesLayout.setPadding(false);
-        nonMergesLayout.setSpacing(false);
-        nonMergesLayout.addClassName("dedup-nonmerges");
+        var title = new Span("Dedup sweep");
+        title.getStyle().set("font-weight", "600");
+        title.getStyle().set("font-size", "14.5px");
+        title.getStyle().set("flex", "0");
+        toolbarLayout.add(title);
+
+        modePill.addClassName("dedup-mode-pill");
+        modePill.getStyle().set("font-size", "11px");
+        modePill.getStyle().set("font-weight", "600");
+        modePill.getStyle().set("padding", "3px 9px");
+        modePill.getStyle().set("border-radius", "999px");
+        modePill.getStyle().set("background", "var(--lumo-primary-color-10pct)");
+        modePill.getStyle().set("color", "var(--lumo-primary-color)");
+        modePill.getStyle().set("display", "inline-flex");
+        modePill.getStyle().set("align-items", "center");
+        modePill.getStyle().set("gap", "5px");
+        modePill.setText("• Dry run");
+        toolbarLayout.add(modePill);
+
+        rescanButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+        rescanButton.addClassName("dedup-rescan");
+        rescanButton.setVisible(false);
+        rescanButton.addClickListener(e -> {
+            if (onRescan != null) {
+                onRescan.run();
+            }
+        });
+        toolbarLayout.add(rescanButton);
 
         applyButton = new Button("Apply all");
         applyButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
@@ -85,6 +125,38 @@ public class DedupPreviewPanel extends VerticalLayout {
             }
         });
 
+        clustersLayout.setPadding(false);
+        clustersLayout.setSpacing(true);
+        clustersLayout.addClassName("dedup-clusters");
+
+        nonMergesLayout.setPadding(false);
+        nonMergesLayout.setSpacing(false);
+        nonMergesLayout.addClassName("dedup-nonmerges");
+
+        // Footer
+        footerLayout.addClassName("dedup-footer");
+        footerLayout.setWidthFull();
+        footerLayout.setAlignItems(FlexComponent.Alignment.CENTER);
+        footerLayout.getStyle().set("padding", "10px 14px");
+        footerLayout.getStyle().set("background", "var(--lumo-base-color)");
+        footerLayout.getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
+        footerLayout.getStyle().set("border-radius", "var(--lumo-border-radius-m)");
+        footerLayout.getStyle().set("box-shadow", "var(--lumo-box-shadow-xs)");
+        footerLayout.getStyle().set("font-size", "12px");
+        footerLayout.getStyle().set("color", "var(--lumo-secondary-text-color)");
+        footerLayout.setVisible(false);
+
+        footerLabel.addClassName("dedup-footer-label");
+        footerLayout.add(footerLabel);
+
+        var footerSpacer = new Div();
+        footerSpacer.setWidthFull();
+        footerLayout.add(footerSpacer);
+
+        var footerTime = new Span();
+        footerTime.addClassName("dedup-footer-time");
+        footerLayout.add(footerTime);
+
         actionsLayout = new HorizontalLayout(applyButton, undoButton);
         actionsLayout.addClassName("dedup-actions");
         actionsLayout.setSpacing(true);
@@ -92,7 +164,7 @@ public class DedupPreviewPanel extends VerticalLayout {
         emptyStateDiv.addClassName("dedup-empty-state");
         emptyStateDiv.setVisible(false);
 
-        add(emptyStateDiv, clustersLayout, nonMergesLayout, actionsLayout);
+        add(toolbarLayout, emptyStateDiv, clustersLayout, nonMergesLayout, actionsLayout, footerLayout);
     }
 
     /**
@@ -103,6 +175,7 @@ public class DedupPreviewPanel extends VerticalLayout {
      */
     public void show(DedupPreview preview) {
         this.current = preview;
+        this.appliedClusterIds.clear();
         clustersLayout.removeAll();
         nonMergesLayout.removeAll();
         emptyStateDiv.removeAll();
@@ -110,14 +183,21 @@ public class DedupPreviewPanel extends VerticalLayout {
         boolean hasClusters = !preview.clusters().isEmpty();
         boolean hasNonMerges = !preview.nonMerges().isEmpty();
 
+        // Always show toolbar and footer when preview is shown
+        toolbarLayout.setVisible(true);
+        updateModePill();
+
         if (!hasClusters && !hasNonMerges) {
             // Empty state: no clusters and no non-merges
             renderEmptyState();
             emptyStateDiv.setVisible(true);
             actionsLayout.setVisible(false);
+            footerLayout.setVisible(false);
         } else {
             emptyStateDiv.setVisible(false);
             actionsLayout.setVisible(true);
+            footerLayout.setVisible(true);
+            updateFooter(preview);
 
             // Render clusters if present
             for (var cluster : preview.clusters()) {
@@ -143,6 +223,54 @@ public class DedupPreviewPanel extends VerticalLayout {
                 for (var edge : preview.nonMerges()) {
                     nonMergesLayout.add(renderNonMerge(edge));
                 }
+            }
+        }
+    }
+
+    private void updateFooter(DedupPreview preview) {
+        var clusterCount = preview.clusters().size();
+        var totalMemories = preview.clusters().stream()
+                .mapToInt(c -> 1 + c.losers().size())
+                .sum();
+        var appliedCount = (int) preview.clusters().stream()
+                .filter(c -> appliedClusterIds.contains(c.survivorId()))
+                .count();
+
+        var label = clusterCount + " clusters found · " + appliedCount + " applied · " + (clusterCount - appliedCount) + " pending";
+        if (!dryRunMode) {
+            label = clusterCount + " clusters found · " + appliedCount + " applied";
+        }
+        footerLabel.setText(label);
+
+        var footerTime = (Span) footerLayout.getComponentAt(2);
+        if (runMetaLabel != null && !runMetaLabel.isEmpty()) {
+            footerTime.setText(runMetaLabel);
+            footerTime.setVisible(true);
+        } else {
+            footerTime.setVisible(false);
+        }
+    }
+
+    /**
+     * Marks a cluster as applied, triggering a re-render with applied-state anatomy
+     * (strikethrough, disabled Apply button, Undo affordance).
+     *
+     * @param survivorId the survivor id of the cluster to mark as applied
+     */
+    public void markClusterApplied(String survivorId) {
+        appliedClusterIds.add(survivorId);
+        if (current != null) {
+            updateFooter(current);
+            // Re-render all clusters to update their state
+            refreshClusters();
+        }
+    }
+
+    private void refreshClusters() {
+        if (current != null) {
+            clustersLayout.removeAll();
+            for (var cluster : current.clusters()) {
+                clustersLayout.add(renderCluster(cluster));
             }
         }
     }
@@ -198,6 +326,57 @@ public class DedupPreviewPanel extends VerticalLayout {
         this.onUndo = handler;
     }
 
+    /**
+     * Sets the handler invoked when the user clicks Rescan.
+     *
+     * @param handler runs when the user requests a rescan; if unset, the Rescan button is hidden
+     */
+    public void setOnRescan(Runnable handler) {
+        this.onRescan = handler;
+        rescanButton.setVisible(handler != null);
+    }
+
+    /**
+     * Sets the mode (dry-run vs applied) and updates the mode pill display.
+     *
+     * @param dryRun true for dry-run mode, false for applied mode
+     */
+    public void setMode(boolean dryRun) {
+        this.dryRunMode = dryRun;
+        updateModePill();
+    }
+
+    /**
+     * Sets optional run metadata (e.g., "Last sweep: Jun 30, 08:00") to display in the footer.
+     *
+     * @param label the metadata label; if null, the footer time is hidden
+     */
+    public void setRunMeta(String label) {
+        this.runMetaLabel = label;
+    }
+
+    /**
+     * Sets the merge threshold for verdict display in signal popovers. If unset, the verdict
+     * shows only the aggregate score without threshold comparison.
+     *
+     * @param threshold the threshold value (e.g., 0.85)
+     */
+    public void setMatchThreshold(double threshold) {
+        this.matchThreshold = threshold;
+    }
+
+    private void updateModePill() {
+        if (dryRunMode) {
+            modePill.getStyle().set("background", "var(--lumo-primary-color-10pct)");
+            modePill.getStyle().set("color", "var(--lumo-primary-color)");
+            modePill.setText("• Dry run");
+        } else {
+            modePill.getStyle().set("background", "var(--lumo-success-color-10pct)");
+            modePill.getStyle().set("color", "var(--lumo-success-color)");
+            modePill.setText("✓ Applied");
+        }
+    }
+
     private Div renderCluster(DedupPreview.Cluster cluster) {
         var clusterCard = new Div();
         clusterCard.addClassName("dedup-cluster");
@@ -222,7 +401,17 @@ public class DedupPreviewPanel extends VerticalLayout {
         title.getStyle().set("flex", "1");
         header.add(title);
 
-        var sigInfo = new Span(cluster.losers().size() + 1 + " propositions");
+        // Compute and display average similarity
+        var avgSimilarity = computeAverageSimilarity(cluster);
+        var sigInfoText = cluster.losers().size() + 1 + " propositions · ";
+        if (!Double.isNaN(avgSimilarity)) {
+            sigInfoText += String.format("%.2f avg similarity", avgSimilarity);
+        } else if (appliedClusterIds.contains(cluster.survivorId())) {
+            sigInfoText += "applied";
+        } else {
+            sigInfoText += "0.00 avg similarity";
+        }
+        var sigInfo = new Span(sigInfoText);
         sigInfo.getStyle().set("font-size", "11px");
         sigInfo.getStyle().set("color", "var(--lumo-secondary-text-color)");
         header.add(sigInfo);
@@ -237,8 +426,11 @@ public class DedupPreviewPanel extends VerticalLayout {
         body.getStyle().set("flex-direction", "column");
         body.getStyle().set("gap", "6px");
 
-        // Survivor row
-        var survivorRow = renderMemberRow(cluster.survivorId(), cluster.survivorText(), 1.0, true, cluster);
+        boolean isApplied = appliedClusterIds.contains(cluster.survivorId());
+
+        // Survivor row: derive confidence from survivor edge if available
+        var survivorConfidence = deriveSurvivorConfidence(cluster);
+        var survivorRow = renderMemberRow(cluster.survivorId(), cluster.survivorText(), survivorConfidence, true, cluster, isApplied);
         body.add(survivorRow);
 
         // Loser rows
@@ -247,7 +439,7 @@ public class DedupPreviewPanel extends VerticalLayout {
                     .filter(e -> e.anchorId().equals(loser.id()) || e.memberId().equals(loser.id()))
                     .findFirst();
             var confidence = loserEdge.map(DedupPreview.Edge::aggregateScore).orElse(0.0);
-            var loserRow = renderMemberRow(loser.id(), loser.text(), confidence, false, cluster);
+            var loserRow = renderMemberRow(loser.id(), loser.text(), confidence, false, cluster, isApplied);
             body.add(loserRow);
         }
 
@@ -258,27 +450,70 @@ public class DedupPreviewPanel extends VerticalLayout {
         actions.getStyle().set("gap", "8px");
         actions.getStyle().set("padding-top", "4px");
 
-        var applyBtn = new Button("Apply cluster");
-        applyBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
-        applyBtn.addClickListener(e -> {
-            if (onApply != null) {
-                onApply.run();
-            }
-        });
+        if (!isApplied) {
+            var applyBtn = new Button("Apply cluster");
+            applyBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
+            applyBtn.addClickListener(e -> {
+                markClusterApplied(cluster.survivorId());
+                if (onApply != null) {
+                    onApply.run();
+                }
+            });
 
-        var skipBtn = new Button("Skip");
-        skipBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+            var skipBtn = new Button("Skip");
+            skipBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
 
-        actions.add(applyBtn, skipBtn);
+            actions.add(applyBtn, skipBtn);
+        } else {
+            var appliedBtn = new Button("Applied ✓");
+            appliedBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
+            appliedBtn.setEnabled(false);
+
+            var undoClusterBtn = new Button("Undo");
+            undoClusterBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+            undoClusterBtn.addClickListener(e -> {
+                if (onUndo != null && current != null) {
+                    onUndo.accept(current.runId());
+                }
+            });
+
+            actions.add(appliedBtn, undoClusterBtn);
+        }
+
         body.add(actions);
 
         clusterCard.add(body);
         return clusterCard;
     }
 
-    private Div renderMemberRow(String memberId, String text, double confidence, boolean isSurvivor, DedupPreview.Cluster cluster) {
+    private double computeAverageSimilarity(DedupPreview.Cluster cluster) {
+        if (cluster.edges().isEmpty()) {
+            return Double.NaN;
+        }
+        var sum = cluster.edges().stream()
+                .mapToDouble(DedupPreview.Edge::aggregateScore)
+                .sum();
+        return sum / cluster.edges().size();
+    }
+
+    private double deriveSurvivorConfidence(DedupPreview.Cluster cluster) {
+        // Try to find an edge involving the survivor
+        var survivorEdge = cluster.edges().stream()
+                .filter(e -> e.anchorId().equals(cluster.survivorId()) || e.memberId().equals(cluster.survivorId()))
+                .findFirst();
+        if (survivorEdge.isPresent()) {
+            return survivorEdge.get().aggregateScore();
+        }
+        // No edge found for survivor, don't show a fake value
+        return Double.NaN;
+    }
+
+    private Div renderMemberRow(String memberId, String text, double confidence, boolean isSurvivor, DedupPreview.Cluster cluster, boolean isApplied) {
         var row = new Div();
         row.addClassName("dedup-member-row");
+        if (isApplied && !isSurvivor) {
+            row.addClassName("dedup-member-row-strike");
+        }
         row.getStyle().set("display", "flex");
         row.getStyle().set("align-items", "center");
         row.getStyle().set("gap", "10px");
@@ -295,7 +530,8 @@ public class DedupPreviewPanel extends VerticalLayout {
         }
 
         // Badge
-        var badge = new Span(isSurvivor ? "Survivor" : "Merge");
+        String badgeText = isSurvivor ? "Survivor" : (isApplied ? "Merged" : "Merge");
+        var badge = new Span(badgeText);
         badge.getStyle().set("font-size", "9.5px");
         badge.getStyle().set("font-weight", "700");
         badge.getStyle().set("text-transform", "uppercase");
@@ -322,13 +558,23 @@ public class DedupPreviewPanel extends VerticalLayout {
         textSpan.getStyle().set("text-overflow", "ellipsis");
         textSpan.getStyle().set("white-space", "nowrap");
 
+        if (isApplied && !isSurvivor) {
+            textSpan.getStyle().set("text-decoration", "line-through");
+            textSpan.getStyle().set("color", "var(--lumo-secondary-text-color)");
+        }
+
         // Score
-        var score = new Span(String.format("conf %.2f", confidence));
-        score.getStyle().set("font-size", "11px");
-        score.getStyle().set("color", "var(--lumo-secondary-text-color)");
-        score.getStyle().set("flex-shrink", "0");
-        score.getStyle().set("width", "56px");
-        score.getStyle().set("text-align", "right");
+        var scoreSpan = new Span();
+        if (!Double.isNaN(confidence)) {
+            scoreSpan.setText(String.format("conf %.2f", confidence));
+        } else {
+            scoreSpan.setText("");
+        }
+        scoreSpan.getStyle().set("font-size", "11px");
+        scoreSpan.getStyle().set("color", "var(--lumo-secondary-text-color)");
+        scoreSpan.getStyle().set("flex-shrink", "0");
+        scoreSpan.getStyle().set("width", "56px");
+        scoreSpan.getStyle().set("text-align", "right");
 
         // Info button for signals
         var infoBtn = new Button("i");
@@ -346,7 +592,7 @@ public class DedupPreviewPanel extends VerticalLayout {
         infoBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ICON);
         infoBtn.getElement().setAttribute("title", "View merge signals");
 
-        row.add(badge, textSpan, score, infoBtn);
+        row.add(badge, textSpan, scoreSpan, infoBtn);
 
         // Create popover for signals (hidden by default)
         var popover = createPopover(memberId, cluster);
@@ -390,7 +636,8 @@ public class DedupPreviewPanel extends VerticalLayout {
                 .findFirst();
 
         if (edge.isPresent()) {
-            for (var signal : edge.get().signals()) {
+            var edgeValue = edge.get();
+            for (var signal : edgeValue.signals()) {
                 var sigRow = new Div();
                 sigRow.getStyle().set("display", "flex");
                 sigRow.getStyle().set("align-items", "center");
@@ -434,9 +681,33 @@ public class DedupPreviewPanel extends VerticalLayout {
             verdict.getStyle().set("padding-top", "8px");
             verdict.getStyle().set("border-top", "1px solid var(--lumo-contrast-10pct)");
             verdict.getStyle().set("font-size", "11px");
-            verdict.getStyle().set("color", "var(--lumo-success-color)");
             verdict.getStyle().set("font-weight", "600");
-            verdict.setText("✓ Above merge threshold (0.85)");
+
+            if (edgeValue.vetoed()) {
+                // Find and display the vetoing signal
+                var vetoingSignal = edgeValue.signals().stream()
+                        .filter(DedupPreview.Signal::veto)
+                        .findFirst();
+                var vetoLabel = vetoingSignal.isPresent()
+                        ? "✗ Veto: " + vetoingSignal.get().signal()
+                        : "✗ Vetoed";
+                verdict.getStyle().set("color", "var(--lumo-error-color)");
+                verdict.setText(vetoLabel);
+            } else if (!Double.isNaN(matchThreshold)) {
+                // If threshold is set, compare aggregate score to it
+                verdict.getStyle().set("color", "var(--lumo-success-color)");
+                if (edgeValue.aggregateScore() >= matchThreshold) {
+                    verdict.setText("✓ Above merge threshold (" + String.format("%.2f", matchThreshold) + ")");
+                } else {
+                    verdict.getStyle().set("color", "var(--lumo-warning-color)");
+                    verdict.setText("Below merge threshold (" + String.format("%.2f", matchThreshold) + ")");
+                }
+            } else {
+                // No threshold set, just show the aggregate score
+                verdict.getStyle().set("color", "var(--lumo-secondary-text-color)");
+                verdict.setText("Aggregate score: " + String.format("%.2f", edgeValue.aggregateScore()));
+            }
+
             popover.add(verdict);
         }
 

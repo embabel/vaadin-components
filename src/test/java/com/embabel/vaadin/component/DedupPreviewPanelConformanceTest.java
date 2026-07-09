@@ -122,11 +122,118 @@ class DedupPreviewPanelConformanceTest {
 			.toList();
 		assertEquals(1, headings.size(), "popover must have 'Merge signals — vs. survivor' heading");
 
-		// Should have verdict line
+		// Should have verdict line (shows aggregate score when no threshold set)
 		var verdicts = allInPopover.stream()
+			.filter(c -> c instanceof Div && (c.getElement().getText().contains("Aggregate score") || c.getElement().getText().contains("threshold")))
+			.toList();
+		assertEquals(1, verdicts.size(), "popover must have verdict line showing score or threshold info");
+	}
+
+	@Test
+	void vetoEdgeShowsVetoVerdict() {
+		var vetoSignal = new DedupPreviewPanel.DedupPreview.Signal("Entity overlap", 0.2, 1.0, true, "");
+		var edge = new DedupPreviewPanel.DedupPreview.Edge("p1", "p2", 0.3, true, List.of(vetoSignal));
+		var cluster = new DedupPreviewPanel.DedupPreview.Cluster("p1", "Alice", List.of(new DedupPreviewPanel.DedupPreview.Member("p2", "alice")), List.of(edge));
+		var preview = new DedupPreviewPanel.DedupPreview("run-1", List.of(cluster), List.of());
+
+		var panel = new DedupPreviewPanel();
+		panel.show(preview);
+
+		var popovers = findComponentsByClassName(panel, "dedup-signal-popover");
+		var popover = popovers.get(1);
+		var allInPopover = collectAll(popover);
+
+		// Should have veto verdict
+		var vetoVerdicts = allInPopover.stream()
+			.filter(c -> c instanceof Div && c.getElement().getText().contains("Veto"))
+			.toList();
+		assertEquals(1, vetoVerdicts.size(), "popover must show veto verdict for vetoed edges");
+	}
+
+	@Test
+	void thresholdAffectsVerdictDisplay() {
+		var signals = List.of(new DedupPreviewPanel.DedupPreview.Signal("Text similarity", 0.92, 1.0, false, ""));
+		var edge = new DedupPreviewPanel.DedupPreview.Edge("p1", "p2", 0.85, false, signals);
+		var cluster = new DedupPreviewPanel.DedupPreview.Cluster("p1", "Alice", List.of(new DedupPreviewPanel.DedupPreview.Member("p2", "alice")), List.of(edge));
+		var preview = new DedupPreviewPanel.DedupPreview("run-1", List.of(cluster), List.of());
+
+		var panel = new DedupPreviewPanel();
+		panel.setMatchThreshold(0.85);
+		panel.show(preview);
+
+		var popovers = findComponentsByClassName(panel, "dedup-signal-popover");
+		var popover = popovers.get(1);
+		var allInPopover = collectAll(popover);
+
+		// Should show "Above merge threshold (0.85)"
+		var thresholdVerdicts = allInPopover.stream()
 			.filter(c -> c instanceof Div && c.getElement().getText().contains("Above merge threshold"))
 			.toList();
-		assertEquals(1, verdicts.size(), "popover must have verdict line with threshold info");
+		assertEquals(1, thresholdVerdicts.size(), "popover must show threshold comparison when threshold is set");
+	}
+
+	@Test
+	void appliedStateShowsAppliedBadgeAndUndo() {
+		var signal = new DedupPreviewPanel.DedupPreview.Signal("Entity overlap", 1.0, 1.0, false, "");
+		var edge = new DedupPreviewPanel.DedupPreview.Edge("p1", "p2", 0.95, false, List.of(signal));
+		var cluster = new DedupPreviewPanel.DedupPreview.Cluster("p1", "Alice", List.of(new DedupPreviewPanel.DedupPreview.Member("p2", "alice")), List.of(edge));
+		var preview = new DedupPreviewPanel.DedupPreview("run-1", List.of(cluster), List.of());
+
+		var panel = new DedupPreviewPanel();
+		panel.show(preview);
+		panel.markClusterApplied("p1");
+
+		var memberRows = findComponentsByClassName(panel, "dedup-member-row");
+		var loserRow = memberRows.get(1);
+		var allInRow = collectAll(loserRow);
+
+		// Loser row should have strike-through class
+		assertTrue(loserRow.getElement().getClassList().contains("dedup-member-row-strike"), "applied member rows must have strike class");
+
+		// Should show "Merged" badge for losers in applied state
+		var badges = allInRow.stream()
+			.filter(c -> c instanceof Span && ("Merged".equals(((Span) c).getText())))
+			.toList();
+		assertEquals(1, badges.size(), "applied member rows must show 'Merged' badge");
+	}
+
+	@Test
+	void toolbarModeAndFooterRenderWhenPreviewShown() {
+		var signal = new DedupPreviewPanel.DedupPreview.Signal("Entity overlap", 1.0, 1.0, false, "");
+		var edge = new DedupPreviewPanel.DedupPreview.Edge("p1", "p2", 0.95, false, List.of(signal));
+		var cluster = new DedupPreviewPanel.DedupPreview.Cluster("p1", "Alice", List.of(new DedupPreviewPanel.DedupPreview.Member("p2", "alice")), List.of(edge));
+		var preview = new DedupPreviewPanel.DedupPreview("run-1", List.of(cluster), List.of());
+
+		var panel = new DedupPreviewPanel();
+		panel.setMode(true);
+		panel.show(preview);
+
+		var toolbars = findComponentsByClassName(panel, "dedup-toolbar");
+		var footers = findComponentsByClassName(panel, "dedup-footer");
+
+		assertEquals(1, toolbars.size(), "toolbar must render");
+		assertTrue(toolbars.get(0).isVisible(), "toolbar must be visible");
+		assertEquals(1, footers.size(), "footer must render");
+		assertTrue(footers.get(0).isVisible(), "footer must be visible");
+	}
+
+	@Test
+	void rescanButtonHiddenWhenNoHandler() {
+		var signal = new DedupPreviewPanel.DedupPreview.Signal("Entity overlap", 1.0, 1.0, false, "");
+		var edge = new DedupPreviewPanel.DedupPreview.Edge("p1", "p2", 0.95, false, List.of(signal));
+		var cluster = new DedupPreviewPanel.DedupPreview.Cluster("p1", "Alice", List.of(new DedupPreviewPanel.DedupPreview.Member("p2", "alice")), List.of(edge));
+		var preview = new DedupPreviewPanel.DedupPreview("run-1", List.of(cluster), List.of());
+
+		var panel = new DedupPreviewPanel();
+		panel.show(preview);
+
+		var rescanBtns = findComponentsByClassName(panel, "dedup-rescan");
+		assertEquals(1, rescanBtns.size(), "rescan button must exist");
+		assertFalse(rescanBtns.get(0).isVisible(), "rescan button must be hidden when no handler set");
+
+		// Now set a handler
+		panel.setOnRescan(() -> {});
+		assertTrue(rescanBtns.get(0).isVisible(), "rescan button must be visible after setting handler");
 	}
 
 	@Test
