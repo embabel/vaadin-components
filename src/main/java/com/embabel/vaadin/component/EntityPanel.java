@@ -277,27 +277,31 @@ public class EntityPanel extends Div {
     }
 
     private Details createContactFactsSection(List<String> contactFacts) {
-        var content = new VerticalLayout();
-        content.setPadding(false);
-        content.setSpacing(false);
+        var content = new Div();
         content.addClassName("entity-contact-facts-content");
+        content.getStyle().set("display", "grid");
+        content.getStyle().set("grid-template-columns", "1fr 1fr");
         content.getStyle().set("gap", "8px");
 
         for (var fact : contactFacts) {
+            var factDiv = new Div();
+            factDiv.addClassName("entity-related-item");
+            factDiv.getStyle().set("display", "flex");
+            factDiv.getStyle().set("align-items", "center");
+            factDiv.getStyle().set("gap", "8px");
+            factDiv.getStyle().set("padding", "7px 10px");
+            factDiv.getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
+            factDiv.getStyle().set("border-radius", "6px");
+            factDiv.getStyle().set("background", "var(--lumo-contrast-5pct)");
+            factDiv.getStyle().set("font-size", "12px");
+
             var factSpan = new Span(fact);
-            factSpan.addClassName("entity-related-item");
-            factSpan.getStyle().set("display", "flex");
-            factSpan.getStyle().set("align-items", "center");
-            factSpan.getStyle().set("padding", "7px 10px");
-            factSpan.getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
-            factSpan.getStyle().set("border-radius", "6px");
-            factSpan.getStyle().set("background", "var(--lumo-contrast-5pct)");
-            factSpan.getStyle().set("font-size", "12px");
             factSpan.getStyle().set("overflow", "hidden");
             factSpan.getStyle().set("text-overflow", "ellipsis");
             factSpan.getStyle().set("white-space", "nowrap");
 
-            content.add(factSpan);
+            factDiv.add(factSpan);
+            content.add(factDiv);
         }
 
         var summary = new Span("Contact Facts");
@@ -370,7 +374,7 @@ public class EntityPanel extends Div {
         content.getStyle().set("flex-wrap", "wrap");
 
         for (var chip : edgeChips) {
-            var chipSpan = new Span(chip);
+            var chipSpan = new Span();
             chipSpan.addClassName("entity-edge-chip");
             chipSpan.getStyle().set("display", "inline-flex");
             chipSpan.getStyle().set("align-items", "center");
@@ -383,6 +387,28 @@ public class EntityPanel extends Div {
             chipSpan.getStyle().set("background", "var(--lumo-contrast-5pct)");
             chipSpan.getStyle().set("color", "var(--lumo-secondary-text-color)");
 
+            // Add colored dot based on relationship type
+            var dot = new Div();
+            dot.getStyle().set("width", "6px");
+            dot.getStyle().set("height", "6px");
+            dot.getStyle().set("border-radius", "50%");
+            dot.getStyle().set("flex-shrink", "0");
+
+            // Determine color based on relationship type
+            if (chip.contains("WORKS_FOR")) {
+                dot.getStyle().set("background", "var(--lumo-primary-color)");
+            } else if (chip.contains("HAS_EMAIL")) {
+                dot.getStyle().set("background", "#b4790b"); // Amber
+            } else if (chip.contains("EMAILED")) {
+                dot.getStyle().set("background", "#7548d6"); // Violet
+            } else if (chip.contains("ATTENDS")) {
+                dot.getStyle().set("background", "#1c9a6c"); // Green
+            } else {
+                dot.getStyle().set("background", "var(--lumo-primary-color)");
+            }
+
+            var text = new Span(chip);
+            chipSpan.add(dot, text);
             content.add(chipSpan);
         }
 
