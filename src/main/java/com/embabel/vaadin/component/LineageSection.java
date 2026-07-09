@@ -548,13 +548,21 @@ public class LineageSection extends VerticalLayout {
 
                 var detail = new Div();
                 detail.addClassName("t2");
-                // Keep the source visible alongside the ref (source · ref); the readable
-                // detail already leads in t1, so this line carries the source reference.
-                var secondary = (entry.source() != null && !entry.source().isBlank())
-                        ? entry.source() + " · " + entry.ref()
-                        : entry.ref();
-                var detailSpan = new Span(secondary);
-                detailSpan.setTitle(entry.ref());
+                // Secondary line = the bits not already in t1, joined by " · ". When t1 shows
+                // the detail, the source belongs here; when t1 already fell back to the source,
+                // don't repeat it. A null/blank ref is simply omitted (no "source · null").
+                boolean hasDetail = entry.detail() != null && !entry.detail().isBlank();
+                var parts = new java.util.ArrayList<String>();
+                if (hasDetail && entry.source() != null && !entry.source().isBlank()) {
+                    parts.add(entry.source());
+                }
+                if (entry.ref() != null && !entry.ref().isBlank()) {
+                    parts.add(entry.ref());
+                }
+                var detailSpan = new Span(String.join(" · ", parts));
+                if (entry.ref() != null) {
+                    detailSpan.setTitle(entry.ref());
+                }
                 detail.add(detailSpan);
 
                 boolean isOpenable = openable == null || openable.test(entry.ref());

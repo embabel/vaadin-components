@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -273,5 +274,19 @@ public class MemorySection extends VerticalLayout {
      */
     public void setOnUndoMember(BiConsumer<String, String> onUndoMember) {
         propositionsPanel.setOnUndoMember(onUndoMember);
+    }
+
+    /**
+     * Set the handler to invoke when an Open button is clicked on a grounding/provenance ref in a lineage section.
+     */
+    public void setOnOpenRef(Consumer<String> onOpenRef) {
+        propositionsPanel.setOnOpenRef(onOpenRef);
+    }
+
+    /**
+     * Set the predicate to filter which refs show an Open button in lineage sections.
+     */
+    public void setOpenable(Predicate<String> openable) {
+        propositionsPanel.setOpenable(openable);
     }
 }
