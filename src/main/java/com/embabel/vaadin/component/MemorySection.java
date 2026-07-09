@@ -209,7 +209,6 @@ public class MemorySection extends VerticalLayout {
         // "Analyze" button (optional)
         if (onAnalyze != null) {
             var analyzeButton = new Button("Analyze", VaadinIcon.COG.create());
-            analyzeButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
             analyzeButton.addClickListener(e -> {
                 onAnalyze.run();
                 getUI().ifPresent(ui -> propositionsPanel.scheduleRefresh(ui, 5000));
