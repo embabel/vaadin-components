@@ -1466,7 +1466,7 @@ vaadin-login-form-wrapper::part(form-title) {
 
 /* ===== Dialog Helpers ===== */
 
-.content-fit-dialog {
+vaadin-dialog-overlay.content-fit-dialog::part(content) {
   padding: var(--lumo-space-m);
 }
 
