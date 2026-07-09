@@ -46,7 +46,12 @@ class CollectorSettingsPanelTest {
                 false,
                 "multi-signal",
                 0.85,
-                "0 0 4 * * *"
+                "0 0 4 * * *",
+                null,
+                null,
+                null,
+                null,
+                null
         );
 
         panel.setValue(settings);
@@ -69,26 +74,37 @@ class CollectorSettingsPanelTest {
     }
 
     @Test
-    void disabledWeightSlidersArePresentAndDisabled() {
+    void weightSlidersAreRealInputsAndRespond() {
         var panel = new CollectorSettingsPanel();
 
-        // Get the root component and search for Spans containing "coming soon" text
-        var allComponents = allComponents(panel);
+        // Set matcher to multi-signal so weight sliders are enabled
+        var matcherRadio = findRadioGroupByClass(panel, "collector-matcher");
+        matcherRadio.setValue("multi-signal");
 
-        // Verify at least one Span with "coming soon" message exists
-        var comingSoonFound = allComponents.stream()
+        // Verify weight sliders are now enabled
+        var vectorField = (NumberField) allComponents(panel).stream()
+                .filter(c -> c instanceof NumberField && c.getElement().getClassList().contains("collector-weight-vector"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("vector weight field not found"));
+        assertTrue(vectorField.isEnabled(), "vector weight slider should be enabled when matcher=multi-signal");
+
+        // Verify stale note is gone: no "not yet implemented" or "coming soon" text
+        var allComponents = allComponents(panel);
+        var staleNoteFound = allComponents.stream()
                 .filter(c -> c instanceof com.vaadin.flow.component.html.Span)
                 .map(c -> (com.vaadin.flow.component.html.Span) c)
                 .anyMatch(span -> span.getText() != null &&
-                        (span.getText().contains("coming soon") || span.getText().contains("not yet")));
+                        (span.getText().contains("not yet") || span.getText().contains("coming soon")));
 
-        assertTrue(comingSoonFound,
-            "disabled sliders should have a 'coming soon' or similar note displayed");
+        assertTrue(!staleNoteFound,
+            "stale 'not yet implemented' note should not exist; weights are now real inputs");
 
-        // Verify panel renders successfully and has many components
-        // (shows all sections are rendered)
-        assertTrue(allComponents.size() > 15,
-            "panel should render multiple sections with many components");
+        // Verify polarity veto row exists and shows indicator (not a slider)
+        assertTrue(allComponents.stream()
+                .filter(c -> c instanceof com.vaadin.flow.component.html.Span)
+                .map(c -> (com.vaadin.flow.component.html.Span) c)
+                .anyMatch(span -> span.getText() != null && span.getText().equals("always on (veto)")),
+            "polarity veto should show 'always on (veto)' indicator");
     }
 
     @Test
@@ -101,7 +117,12 @@ class CollectorSettingsPanelTest {
                 false,
                 "cosine",
                 0.50,
-                "0 0 8 * * *"
+                "0 0 8 * * *",
+                null,
+                null,
+                null,
+                null,
+                null
         );
         panel.setValue(initial);
 

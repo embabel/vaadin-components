@@ -44,7 +44,12 @@ public class CollectorSettingsPanel extends VerticalLayout {
             boolean dryRun,
             String matcher,
             double similarityThreshold,
-            String cron
+            String cron,
+            Double vector,
+            Double lexical,
+            Double entityOverlap,
+            Double groundingOverlap,
+            Double provenanceOverlap
     ) {}
 
     private Consumer<CollectorSettings> onSave;
@@ -54,6 +59,11 @@ public class CollectorSettingsPanel extends VerticalLayout {
     private final RadioButtonGroup<String> matcherGroup;
     private final NumberField thresholdField;
     private final TextField cronField;
+    private final NumberField vectorField;
+    private final NumberField lexicalField;
+    private final NumberField entityOverlapField;
+    private final NumberField groundingOverlapField;
+    private final NumberField provenanceOverlapField;
 
     public CollectorSettingsPanel() {
         addClassName("collector-settings-panel");
@@ -86,6 +96,8 @@ public class CollectorSettingsPanel extends VerticalLayout {
         matcherGroup.setItems("cosine", "multi-signal");
         matcherGroup.addClassName("collector-matcher");
         matcherGroup.getStyle().set("padding", "8px 0");
+        // Enable/disable weight sliders when matcher changes
+        matcherGroup.addValueChangeListener(e -> updateWeightSliderEnableState());
         var matcherRow = new HorizontalLayout();
         matcherRow.setAlignItems(Alignment.CENTER);
         matcherRow.setSpacing(true);
@@ -109,23 +121,33 @@ public class CollectorSettingsPanel extends VerticalLayout {
         clusteringSection.add(this.thresholdField);
         add(clusteringSection);
 
-        // Signal weights section (disabled, coming soon)
+        // Signal weights section
         var weightsSection = createSection("Signal weights");
-        weightsSection.add(createDisabledWeightSlider("Vector", 0.40));
-        weightsSection.add(createDisabledWeightSlider("Lexical", 0.15));
-        weightsSection.add(createDisabledWeightSlider("Entity overlap", 0.15));
-        weightsSection.add(createDisabledWeightSlider("Grounding overlap", 0.15));
-        weightsSection.add(createDisabledWeightSlider("Provenance overlap", 0.15));
-        weightsSection.add(createDisabledWeightSlider("Polarity veto", 1.0));
 
-        var disabledNote = new Span("Enabled when Matcher is set to Multi-signal. Individual signal properties are not yet implemented in dice — shown for the upcoming release.");
-        disabledNote.getStyle()
+        // Dice's real defaults: vector 1.0, lexical 0.5, entityOverlap 1.0, groundingOverlap 0.5, provenanceOverlap 0.5
+        this.vectorField = createWeightSlider("Vector", 1.0, "collector-weight-vector");
+        this.lexicalField = createWeightSlider("Lexical", 0.5, "collector-weight-lexical");
+        this.entityOverlapField = createWeightSlider("Entity overlap", 1.0, "collector-weight-entity-overlap");
+        this.groundingOverlapField = createWeightSlider("Grounding overlap", 0.5, "collector-weight-grounding-overlap");
+        this.provenanceOverlapField = createWeightSlider("Provenance overlap", 0.5, "collector-weight-provenance-overlap");
+
+        weightsSection.add(vectorField);
+        weightsSection.add(lexicalField);
+        weightsSection.add(entityOverlapField);
+        weightsSection.add(groundingOverlapField);
+        weightsSection.add(provenanceOverlapField);
+
+        // Polarity veto is not a weight; it's a hardcoded veto gate in dice
+        weightsSection.add(createPolarityVetoIndicator());
+
+        var enabledNote = new Span("Enabled when Matcher is set to Multi-signal.");
+        enabledNote.getStyle()
                 .set("font-size", "11px")
                 .set("color", "var(--lumo-tertiary-text-color, #98a0ac)")
                 .set("font-style", "italic")
                 .set("margin-top", "8px")
                 .set("display", "block");
-        weightsSection.add(disabledNote);
+        weightsSection.add(enabledNote);
         add(weightsSection);
 
         // Scheduling section
@@ -219,11 +241,32 @@ public class CollectorSettingsPanel extends VerticalLayout {
         return checkbox;
     }
 
-    private Component createDisabledWeightSlider(String name, double value) {
-        var sliderRow = new VerticalLayout();
-        sliderRow.setPadding(false);
-        sliderRow.setSpacing(false);
-        sliderRow.getStyle()
+    /**
+     * Create a weight slider as a NumberField (range input) between 0 and 1 with 0.01 step.
+     * Disabled by default; enabled when matcher == "multi-signal".
+     */
+    private NumberField createWeightSlider(String label, double diceDefault, String className) {
+        var field = new NumberField();
+        field.setLabel(label);
+        field.setMin(0.0);
+        field.setMax(1.0);
+        field.setStep(0.01);
+        field.setValue(diceDefault);
+        field.addClassName(className);
+        field.setWidthFull();
+        field.setEnabled(false); // Initially disabled; enabled when matcher == "multi-signal"
+        return field;
+    }
+
+    /**
+     * Create the polarity veto indicator row (static, not a weight slider).
+     * Polarity veto is hardcoded as a pure veto gate in dice, not a configurable weight.
+     */
+    private Component createPolarityVetoIndicator() {
+        var indicatorRow = new VerticalLayout();
+        indicatorRow.setPadding(false);
+        indicatorRow.setSpacing(false);
+        indicatorRow.getStyle()
                 .set("padding", "10px 0")
                 .set("border-top", "1px solid var(--lumo-divider-color, #e2e5ea)");
 
@@ -233,35 +276,36 @@ public class CollectorSettingsPanel extends VerticalLayout {
         top.setPadding(false);
         top.setSpacing(false);
 
-        var sliderName = new Span(name);
-        sliderName.getStyle().set("font-weight", "500");
-        var sliderValue = new Span(String.format("%.2f", value));
-        sliderValue.getStyle()
+        var name = new Span("Polarity veto");
+        name.getStyle().set("font-weight", "500");
+        var indicator = new Span("always on (veto)");
+        indicator.getStyle()
                 .set("color", "var(--lumo-tertiary-text-color, #98a0ac)")
                 .set("font-weight", "600")
                 .set("font-size", "12px");
-        top.add(sliderName, sliderValue);
-        top.setFlexGrow(1, sliderName);
+        top.add(name, indicator);
+        top.setFlexGrow(1, name);
 
-        // Create disabled range input
-        var sliderDiv = new Div();
-        sliderDiv.getElement().setProperty("innerHTML",
-            String.format(
-                """
-                <input type="range" min="0" max="1" step="0.01" value="%.2f" disabled
-                       style="width: 100%%; height: 4px; border-radius: 2px;
-                              background: var(--lumo-tertiary-color, #dde1e7);
-                              outline: none; -webkit-appearance: none;
-                              appearance: none; opacity: 0.5; cursor: not-allowed;">
-                """,
-                value));
+        indicatorRow.add(top);
+        return indicatorRow;
+    }
 
-        sliderRow.add(top, sliderDiv);
-        return sliderRow;
+    /**
+     * Enable weight sliders only when matcher == "multi-signal"; disable otherwise.
+     */
+    private void updateWeightSliderEnableState() {
+        boolean isMultiSignal = "multi-signal".equals(matcherGroup.getValue());
+        vectorField.setEnabled(isMultiSignal);
+        lexicalField.setEnabled(isMultiSignal);
+        entityOverlapField.setEnabled(isMultiSignal);
+        groundingOverlapField.setEnabled(isMultiSignal);
+        provenanceOverlapField.setEnabled(isMultiSignal);
     }
 
     /**
      * Populate the panel with the given settings.
+     * Dice's defaults are: vector=1.0, lexical=0.5, entityOverlap=1.0, groundingOverlap=0.5, provenanceOverlap=0.5.
+     * If a weight field is null, load the dice default; if set, load the stored value.
      */
     public void setValue(CollectorSettings settings) {
         if (settings != null) {
@@ -270,6 +314,16 @@ public class CollectorSettingsPanel extends VerticalLayout {
             matcherGroup.setValue(settings.matcher());
             thresholdField.setValue(settings.similarityThreshold());
             cronField.setValue(settings.cron() != null ? settings.cron() : "");
+
+            // Load weight values: null → dice default, otherwise → stored value
+            vectorField.setValue(settings.vector() != null ? settings.vector() : 1.0);
+            lexicalField.setValue(settings.lexical() != null ? settings.lexical() : 0.5);
+            entityOverlapField.setValue(settings.entityOverlap() != null ? settings.entityOverlap() : 1.0);
+            groundingOverlapField.setValue(settings.groundingOverlap() != null ? settings.groundingOverlap() : 0.5);
+            provenanceOverlapField.setValue(settings.provenanceOverlap() != null ? settings.provenanceOverlap() : 0.5);
+
+            // Update weight slider enable state based on matcher
+            updateWeightSliderEnableState();
         }
     }
 
@@ -289,7 +343,12 @@ public class CollectorSettingsPanel extends VerticalLayout {
                 dryRunToggle.getValue(),
                 matcherGroup.getValue() != null ? matcherGroup.getValue() : "cosine",
                 threshold,
-                cronField.getValue()
+                cronField.getValue(),
+                vectorField.getValue(),
+                lexicalField.getValue(),
+                entityOverlapField.getValue(),
+                groundingOverlapField.getValue(),
+                provenanceOverlapField.getValue()
         );
         onSave.accept(settings);
     }
