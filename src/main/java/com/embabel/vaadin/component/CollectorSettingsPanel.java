@@ -50,7 +50,16 @@ public class CollectorSettingsPanel extends VerticalLayout {
             Double entityOverlap,
             Double groundingOverlap,
             Double provenanceOverlap
-    ) {}
+    ) {
+        /**
+         * Settings without per-signal weights — every weight stays null, meaning "use the
+         * collector's own default". Keeps existing callers compiling as the record grows.
+         */
+        public CollectorSettings(boolean enabled, boolean dryRun, String matcher,
+                                 double similarityThreshold, String cron) {
+            this(enabled, dryRun, matcher, similarityThreshold, cron, null, null, null, null, null);
+        }
+    }
 
     private Consumer<CollectorSettings> onSave;
 
