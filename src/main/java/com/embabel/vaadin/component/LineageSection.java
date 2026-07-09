@@ -548,7 +548,12 @@ public class LineageSection extends VerticalLayout {
 
                 var detail = new Div();
                 detail.addClassName("t2");
-                var detailSpan = new Span(entry.ref());
+                // Keep the source visible alongside the ref (source · ref); the readable
+                // detail already leads in t1, so this line carries the source reference.
+                var secondary = (entry.source() != null && !entry.source().isBlank())
+                        ? entry.source() + " · " + entry.ref()
+                        : entry.ref();
+                var detailSpan = new Span(secondary);
                 detailSpan.setTitle(entry.ref());
                 detail.add(detailSpan);
 
