@@ -27,6 +27,8 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * Section showing a single proposition's lineage: what it's grounded on, its provenance trail,
@@ -327,6 +329,8 @@ public class LineageSection extends VerticalLayout {
     // The proposition currently on show, so an Undo can re-render this same lineage
     // against fresh data once the retired member has been restored.
     private String currentPropositionId;
+    private Consumer<String> onOpenRef;
+    private Predicate<String> openable;
 
     /**
      * @param lineageProvider looks up lineage for a proposition id
@@ -351,6 +355,25 @@ public class LineageSection extends VerticalLayout {
      */
     public void setOnUndoMember(BiConsumer<String, String> callback) {
         this.onUndoMember = callback;
+    }
+
+    /**
+     * Sets the callback to invoke when a grounding or provenance ref is opened.
+     *
+     * @param handler receives the ref string when a ref is clicked; may be null to disable
+     */
+    public void setOnOpenRef(Consumer<String> handler) {
+        this.onOpenRef = handler;
+    }
+
+    /**
+     * Sets a predicate to determine which refs are openable. Refs that fail the test
+     * render without the "Open →" affordance.
+     *
+     * @param predicate returns true if the ref should be openable; null means all refs are openable
+     */
+    public void setOpenable(Predicate<String> predicate) {
+        this.openable = predicate;
     }
 
     /**
@@ -435,9 +458,14 @@ public class LineageSection extends VerticalLayout {
                 txt.setTitle(ref);
                 refDiv.add(txt);
 
-                var go = new Span("Open →");
-                go.addClassName("ref-go");
-                refDiv.add(go);
+                boolean isOpenable = openable == null || openable.test(ref);
+                if (onOpenRef != null && isOpenable) {
+                    var goButton = new Button("Open →");
+                    goButton.addClassName("ref-go");
+                    goButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+                    goButton.addClickListener(e -> onOpenRef.accept(ref));
+                    refDiv.add(goButton);
+                }
 
                 refList.add(refDiv);
             }
@@ -508,21 +536,32 @@ public class LineageSection extends VerticalLayout {
                 var stepBody = new Div();
                 stepBody.addClassName("lineage-step-body");
 
+                // Show detail (or source as fallback) as the primary label
+                var displayText = (entry.detail() != null && !entry.detail().isBlank())
+                        ? entry.detail()
+                        : entry.source();
+
                 var title = new Div();
                 title.addClassName("t1");
-                title.add(new Span(entry.source()));
+                title.add(new Span(displayText));
                 stepBody.add(title);
-
-                var detailText = entry.ref();
-                if (entry.detail() != null && !entry.detail().isBlank()) {
-                    detailText += " · " + entry.detail();
-                }
 
                 var detail = new Div();
                 detail.addClassName("t2");
-                detail.add(new Span(detailText));
-                stepBody.add(detail);
+                var detailSpan = new Span(entry.ref());
+                detailSpan.setTitle(entry.ref());
+                detail.add(detailSpan);
 
+                boolean isOpenable = openable == null || openable.test(entry.ref());
+                if (onOpenRef != null && isOpenable) {
+                    var goButton = new Button("Open →");
+                    goButton.addClassName("ref-go");
+                    goButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+                    goButton.addClickListener(e -> onOpenRef.accept(entry.ref()));
+                    detail.add(goButton);
+                }
+
+                stepBody.add(detail);
                 step.add(stepBody);
                 steps.add(step);
             }
