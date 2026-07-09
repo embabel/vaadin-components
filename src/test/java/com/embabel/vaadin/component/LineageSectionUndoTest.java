@@ -130,6 +130,35 @@ class LineageSectionUndoTest {
         assertTrue(undoButtons.isEmpty(), "no undo button when callback not set");
     }
 
+    @Test
+    void reRendersCollapseHistoryAfterUndo() {
+        var member1 = new CollapseExplanation.RetiredMember(
+                "retired-1", "Jim works in Melbourne", "STALE", List.of(), List.of(), List.of());
+        var member2 = new CollapseExplanation.RetiredMember(
+                "retired-2", "James is in Brisbane", "STALE", List.of(), List.of(), List.of());
+        // The provider reads live from this list, so restoring a member (removing it) is
+        // reflected the next time the section queries its lineage.
+        var retired = new ArrayList<CollapseExplanation.RetiredMember>(List.of(member1, member2));
+        LineageProvider provider = id -> {
+            var explanation = new CollapseExplanation(
+                    "component-1", "survivor-1", "Jim lives in Brisbane", "MERGE", List.copyOf(retired), List.of());
+            return Optional.of(new LineageProvider.Lineage(List.of(), List.of(), Optional.of(explanation)));
+        };
+
+        var section = new LineageSection(provider);
+        // Simulate the host restoring the retired member to ACTIVE (dropping it from the cluster).
+        section.setOnUndoMember((survivorId, retiredId) -> retired.removeIf(m -> m.propositionId().equals(retiredId)));
+        section.show("survivor-1");
+        assertEquals(2, findButtonsByClass(section, "lineage-undo-member").size());
+
+        // Clicking one undo must leave the collapse history showing one fewer member — proving
+        // the section re-rendered against fresh lineage rather than keeping a stale snapshot.
+        findButtonsByClass(section, "lineage-undo-member").get(0).click();
+
+        assertEquals(1, findButtonsByClass(section, "lineage-undo-member").size(),
+                "collapse history must re-render after undo so the restored member drops out");
+    }
+
     private static List<Button> findButtonsByClass(Component root, String className) {
         var buttons = new ArrayList<Button>();
         walkTree(root, c -> {

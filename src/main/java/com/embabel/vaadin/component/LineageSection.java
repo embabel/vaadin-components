@@ -324,6 +324,9 @@ public class LineageSection extends VerticalLayout {
 
     private final LineageProvider lineageProvider;
     private BiConsumer<String, String> onUndoMember;
+    // The proposition currently on show, so an Undo can re-render this same lineage
+    // against fresh data once the retired member has been restored.
+    private String currentPropositionId;
 
     /**
      * @param lineageProvider looks up lineage for a proposition id
@@ -356,6 +359,7 @@ public class LineageSection extends VerticalLayout {
      * @param propositionId id of the proposition to trace
      */
     public void show(String propositionId) {
+        this.currentPropositionId = propositionId;
         // Remove all but the style tag
         var children = getChildren().toList();
         for (var child : children) {
@@ -594,7 +598,12 @@ public class LineageSection extends VerticalLayout {
                 undoButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
                 var survivorId = explanation.survivorId();
                 var retiredId = member.propositionId();
-                undoButton.addClickListener(event -> onUndoMember.accept(survivorId, retiredId));
+                undoButton.addClickListener(event -> {
+                    onUndoMember.accept(survivorId, retiredId);
+                    // Re-render against fresh lineage so the restored member drops out of the
+                    // collapse history immediately, instead of leaving a stale snapshot on screen.
+                    show(currentPropositionId);
+                });
                 text.add(undoButton);
             }
 
