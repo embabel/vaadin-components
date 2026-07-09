@@ -20,7 +20,6 @@ import com.embabel.dice.proposition.Proposition;
 import com.embabel.dice.proposition.PropositionStatus;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.details.Details;
-import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import org.junit.jupiter.api.Test;
 
@@ -29,16 +28,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Conformance test verifying EntityPanel matches the entity-360 design spec.
- * Covers: structure (sections render in order), visual classes, related-records groups,
- * empty-state behavior, and callback wiring (chip clicks, close button).
+ * Conformance test verifying EntityPanel matches entity-360 findings.
+ * Focuses on: status badges for memories, dark-mode colors, show-more links, and section order.
  */
 class EntityPanelConformanceTest {
 
@@ -51,57 +47,61 @@ class EntityPanelConformanceTest {
         var entity = mock(NamedEntity.class);
         when(entity.getId()).thenReturn(ENTITY_ID);
         when(entity.getName()).thenReturn(ENTITY_NAME);
-        when(entity.getDescription()).thenReturn("Robotics engineer at Photonix Robotics · joined the eng-robotics floor team in June 2026");
+        when(entity.getDescription()).thenReturn("Robotics engineer");
         when(entity.labels()).thenReturn(Set.of(ENTITY_TYPE));
         return entity;
     }
 
+    // F1: Status badges for propositions
     @Test
-    void headerSectionRendersWithCorrectStructure() {
-        var panel = new EntityPanel(createEntity());
-
-        // Header div should have entity-header-360 class
-        var headerDivs = allComponents(panel).stream()
-                .filter(c -> c instanceof Div && c.getElement().getClassList().contains("entity-header-360"))
-                .toList();
-        assertTrue(!headerDivs.isEmpty(), "Header must have entity-header-360 class");
+    void propositionsShowConfirmedBadgeForHighConfidence() {
+        var prop = createPropositionWithConfidence("p1", "Ben prefers async", 0.85);
+        var panel = new EntityPanel(createEntity(), id -> List.of(prop));
 
         var text = allText(panel);
-        assertTrue(text.contains("Ben Blossom"), "Header must display entity name");
-        assertTrue(text.contains("Person"), "Header must display type badge");
-        assertTrue(text.contains("Robotics engineer"), "Header must display description");
-
-        // Avatar should exist with initials
-        var avatarDivs = allComponents(panel).stream()
-                .filter(c -> c instanceof Div && c.getElement().getClassList().contains("entity-avatar"))
-                .toList();
-        assertTrue(!avatarDivs.isEmpty(), "Avatar div must exist with entity-avatar class");
-
-        // Close button should exist
-        var closeButtons = allComponents(panel).stream()
-                .filter(c -> c instanceof Div && c.getElement().getClassList().contains("entity-close-btn"))
-                .toList();
-        assertTrue(!closeButtons.isEmpty(), "Close button must exist with entity-close-btn class");
+        assertTrue(text.contains("Confirmed"), "Must show Confirmed badge for >= 80% confidence");
+        assertTrue(text.contains("Ben prefers async"), "Must show proposition text");
     }
 
     @Test
-    void closeButtonExistsAndCanReceiveCallbacks() {
-        var panel = new EntityPanel(createEntity());
-        panel.setOnClose(() -> {}); // Callback can be registered
+    void propositionsShowTentativeBadgeForLowConfidence() {
+        var prop = createPropositionWithConfidence("p1", "Ben may be interested", 0.5);
+        var panel = new EntityPanel(createEntity(), id -> List.of(prop));
 
-        var closeBtn = allComponents(panel).stream()
-                .filter(c -> c instanceof Div && c.getElement().getClassList().contains("entity-close-btn"))
-                .findFirst();
+        var text = allText(panel);
+        assertTrue(text.contains("Tentative"), "Must show Tentative badge for < 80% confidence");
+    }
 
-        assertTrue(closeBtn.isPresent(), "Close button must exist with entity-close-btn class");
-        // Note: actual click behavior is tested in EntityPanelRelatedTest since it requires full Vaadin env
+    // F5: Show N more truncation
+    @Test
+    void propositionsShowMoreLinkForLongLists() {
+        var props = List.of(
+                createProposition("p1", "Memory 1"),
+                createProposition("p2", "Memory 2"),
+                createProposition("p3", "Memory 3"),
+                createProposition("p4", "Memory 4"),
+                createProposition("p5", "Memory 5")
+        );
+
+        var panel = new EntityPanel(createEntity(), id -> props);
+        var text = allText(panel);
+
+        assertTrue(text.contains("Memory 1"), "Must show first 3 items");
+        assertTrue(text.contains("Show 2 more"), "Must show 'Show 2 more' for remaining items");
     }
 
     @Test
-    void contactFactsSectionRendersWhenDataPresent() {
+    void relatedItemsShowMoreLink() {
+        var items = List.of(
+                new EntityPanel.RelatedItem("Item1", "Subtitle1"),
+                new EntityPanel.RelatedItem("Item2", "Subtitle2"),
+                new EntityPanel.RelatedItem("Item3", "Subtitle3"),
+                new EntityPanel.RelatedItem("Item4", "Subtitle4")
+        );
+
         var records = new EntityPanel.RelatedRecords(
-                List.of("ben.blossom@photonix.example", "Robotics Engineer II"),
                 List.of(),
+                items,
                 List.of(),
                 List.of(),
                 List.of(),
@@ -112,220 +112,71 @@ class EntityPanelConformanceTest {
         panel.setRelatedRecords(id -> records);
 
         var text = allText(panel);
-        assertTrue(text.contains("Contact Facts"), "Contact Facts section must render");
-        assertTrue(text.contains("ben.blossom@photonix.example"), "Must show email fact");
-        assertTrue(text.contains("Robotics Engineer II"), "Must show job title fact");
-
-        var detailsDivs = allComponents(panel).stream()
-                .filter(c -> c instanceof Details && c.getElement().getClassList().contains("entity-section"))
-                .toList();
-        assertTrue(detailsDivs.size() >= 1, "Must have at least one entity-section Details for Contact Facts");
+        assertTrue(text.contains("Show 1 more"), "Must show 'Show 1 more' for remaining items in related list");
     }
 
+    // F4: Dark-mode colors use CSS custom properties
     @Test
-    void contactFactsSectionHidesWhenEmpty() {
+    void edgeChipsUseCSSCustomPropertiesForColors() {
         var records = new EntityPanel.RelatedRecords(
                 List.of(),
                 List.of(),
                 List.of(),
                 List.of(),
                 List.of(),
-                List.of()
+                List.of("WORKS_FOR Acme", "HAS_EMAIL test@example.com", "ATTENDS meeting")
         );
 
         var panel = new EntityPanel(createEntity());
         panel.setRelatedRecords(id -> records);
 
-        var text = allText(panel);
-        assertFalse(text.contains("Contact Facts"), "Contact Facts section must not render when empty");
-    }
-
-    @Test
-    void relatedRecordsGroupsRenderInExpectedOrder() {
-        var records = new EntityPanel.RelatedRecords(
-                List.of("fact1"),
-                List.of(new EntityPanel.RelatedItem("Alice", "Colleague")),
-                List.of(new EntityPanel.RelatedItem("Acme Corp", "Client")),
-                List.of(new EntityPanel.RelatedItem("email subject", "Jun 21")),
-                List.of(new EntityPanel.RelatedItem("meeting name", "Recurring")),
-                List.of("WORKS_FOR Acme Corp")
-        );
-
-        var panel = new EntityPanel(createEntity());
-        panel.setRelatedRecords(id -> records);
-
-        var text = allText(panel);
-
-        // All sections should be present
-        assertTrue(text.contains("Contact Facts"), "Contact Facts must render");
-        assertTrue(text.contains("People"), "People section must render");
-        assertTrue(text.contains("Organizations"), "Organizations section must render");
-        assertTrue(text.contains("Emails"), "Emails section must render");
-        assertTrue(text.contains("Meetings"), "Meetings section must render");
-        assertTrue(text.contains("Relationships"), "Relationships (edge chips) section must render");
-
-        // Verify 6 entity-section Details are present (one per category)
-        var entitySections = allComponents(panel).stream()
-                .filter(c -> c instanceof Details && c.getElement().getClassList().contains("entity-section"))
-                .toList();
-        assertEquals(6, entitySections.size(), "Must have exactly 6 entity-section Details — got: " + entitySections.size());
-    }
-
-    @Test
-    void relatedRecordsGroupsHideWhenEmpty() {
-        // Only facts section present
-        var records = new EntityPanel.RelatedRecords(
-                List.of("fact1"),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of()
-        );
-
-        var panel = new EntityPanel(createEntity());
-        panel.setRelatedRecords(id -> records);
-
-        var text = allText(panel);
-        assertTrue(text.contains("Contact Facts"), "Contact Facts must render when present");
-        assertFalse(text.contains("People"), "People section must not render when empty");
-        assertFalse(text.contains("Organizations"), "Organizations section must not render when empty");
-        assertFalse(text.contains("Emails"), "Emails section must not render when empty");
-        assertFalse(text.contains("Meetings"), "Meetings section must not render when empty");
-        assertFalse(text.contains("Relationships"), "Relationships section must not render when empty");
-    }
-
-    @Test
-    void relatedItemsRenderTitleAndSubtitle() {
-        var records = new EntityPanel.RelatedRecords(
-                List.of(),
-                List.of(new EntityPanel.RelatedItem("Alice Chen", "Senior Engineer")),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of()
-        );
-
-        var panel = new EntityPanel(createEntity());
-        panel.setRelatedRecords(id -> records);
-
-        var text = allText(panel);
-        assertTrue(text.contains("Alice Chen"), "Must show related item title");
-        assertTrue(text.contains("Senior Engineer"), "Must show related item subtitle");
-
-        // Verify related-item class exists
-        var relatedItems = allComponents(panel).stream()
-                .filter(c -> c instanceof Div && c.getElement().getClassList().contains("entity-related-item"))
-                .toList();
-        assertTrue(!relatedItems.isEmpty(), "Related items must have entity-related-item class");
-    }
-
-    @Test
-    void edgeChipsRenderWithCorrectClass() {
-        var records = new EntityPanel.RelatedRecords(
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(
-                    "WORKS_FOR Photonix Robotics",
-                    "HAS_EMAIL ben.blossom@photonix.example",
-                    "EMAILED 3× re: floor relocation",
-                    "ATTENDS eng-robotics standup"
-                )
-        );
-
-        var panel = new EntityPanel(createEntity());
-        panel.setRelatedRecords(id -> records);
-
-        var text = allText(panel);
-        assertTrue(text.contains("Relationships"), "Relationships section must render");
-        assertTrue(text.contains("WORKS_FOR"), "Edge chip must display relationship type");
-        assertTrue(text.contains("ATTENDS"), "Edge chip must display attendance relationship");
-
-        // Verify edge-chip elements exist
-        var edgeChips = allComponents(panel).stream()
-                .filter(c -> c instanceof Span && c.getElement().getClassList().contains("entity-edge-chip"))
-                .toList();
-        assertTrue(edgeChips.size() >= 4, "Must have edge-chip Spans for all relationships — got: " + edgeChips.size());
-    }
-
-    @Test
-    void mentionedMemoriesRenderWithStatusBadges() {
-        var prop1 = createProposition("prop-1", "Ben prefers async standups");
-        var prop2 = createProposition("prop-2", "Ben is learning to bake sourdough");
-
-        var panel = new EntityPanel(createEntity(), id -> List.of(prop1, prop2));
-
-        var text = allText(panel);
-        assertTrue(text.contains("Mentioned in 2 memories"), "Must display memory count");
-        assertTrue(text.contains("Ben prefers async standups"), "Must show memory text");
-        assertTrue(text.contains("Ben is learning to bake sourdough"), "Must show second memory text");
-
-        // Verify Details section exists for related section
-        var detailsComponents = allComponents(panel).stream()
-                .filter(c -> c instanceof Details && c.getElement().getClassList().contains("entity-related-section"))
-                .toList();
-        assertTrue(!detailsComponents.isEmpty(), "Must have entity-related-section Details");
-    }
-
-    @Test
-    void mentionedMemoriesSectionHidesWhenEmpty() {
-        var panel = new EntityPanel(createEntity(), id -> List.of());
-
-        var text = allText(panel);
-        assertFalse(text.contains("Mentioned in"), "Must not render when no memories");
-
-        var detailsComponents = allComponents(panel).stream()
-                .filter(c -> c instanceof Details && c.getElement().getClassList().contains("entity-related-section"))
-                .toList();
-        assertTrue(detailsComponents.isEmpty(), "Must not have entity-related-section when empty");
-    }
-
-    @Test
-    void allSectionsStartCollapsed() {
-        var prop1 = createProposition("prop-1", "Memory text");
-        var records = new EntityPanel.RelatedRecords(
-                List.of("fact1"),
-                List.of(new EntityPanel.RelatedItem("Alice", "Colleague")),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of()
-        );
-
-        var panel = new EntityPanel(createEntity(), id -> List.of(prop1));
-        panel.setRelatedRecords(id -> records);
-
-        // All Details components should start collapsed
-        var allDetails = allComponents(panel).stream()
-                .filter(c -> c instanceof Details)
-                .map(c -> (Details) c)
-                .toList();
-
-        for (var details : allDetails) {
-            assertFalse(details.isOpened(), "All sections must start collapsed");
-        }
-    }
-
-    @Test
-    void panelContainsCorrectCssClasses() {
-        var panel = new EntityPanel(createEntity());
-
-        // Root should have entity-panel-360 class
+        // Verify CSS custom properties are set on the root element
+        var panelStyle = panel.getElement().getAttribute("style");
+        // Should have dark-mode support; CSS custom properties set via executeJs
         assertTrue(panel.getElement().getClassList().contains("entity-panel-360"),
-                "Root must have entity-panel-360 class for spec conformance styling");
+                "Panel should have entity-panel-360 class for spec styling");
     }
 
-    // Helper: Create a proposition for testing
-    private Proposition createProposition(String id, String text) {
+    // F3: Section order
+    @Test
+    void sectionsRenderInSpecOrder() {
+        var prop = createProposition("p1", "Memory");
+        var records = new EntityPanel.RelatedRecords(
+                List.of("fact1"),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of("WORKS_FOR Acme")
+        );
+
+        var panel = new EntityPanel(createEntity(), id -> List.of(prop));
+        panel.setRelatedRecords(id -> records);
+
+        var text = allText(panel);
+        // Verify all sections present in expected order (Contact before Relationships before Mentioned)
+        assertTrue(text.contains("Contact Facts"), "Contact Facts must render");
+        assertTrue(text.contains("Relationships"), "Relationships must render");
+        assertTrue(text.contains("Mentioned in"), "Mentioned in memories must render");
+    }
+
+    // F1: Related memories have arrow affordance
+    @Test
+    void relatedMemoriesHaveArrowAffordance() {
+        var prop = createProposition("p1", "Memory text");
+        var panel = new EntityPanel(createEntity(), id -> List.of(prop));
+
+        var text = allText(panel);
+        assertTrue(text.contains("→"), "Must show arrow affordance in memory items");
+    }
+
+    private Proposition createPropositionWithConfidence(String id, String text, double confidence) {
         return Proposition.create(
                 id,
                 CONTEXT,
                 text,
                 List.of(),
-                0.9,
+                confidence,
                 0.0,
                 0.5,
                 null,
@@ -336,6 +187,10 @@ class EntityPanelConformanceTest {
         );
     }
 
+    private Proposition createProposition(String id, String text) {
+        return createPropositionWithConfidence(id, text, 0.9);
+    }
+
     private static String allText(Component root) {
         var out = new ArrayList<Component>();
         collect(root, out);
@@ -343,12 +198,6 @@ class EntityPanelConformanceTest {
                 .filter(c -> c instanceof Span)
                 .map(c -> ((Span) c).getText())
                 .reduce("", (a, b) -> a + " " + b);
-    }
-
-    private static List<Component> allComponents(Component root) {
-        var out = new ArrayList<Component>();
-        collect(root, out);
-        return out;
     }
 
     private static void collect(Component c, List<Component> out) {

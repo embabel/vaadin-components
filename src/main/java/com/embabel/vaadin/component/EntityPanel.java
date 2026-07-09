@@ -74,6 +74,20 @@ public class EntityPanel extends Div {
         this.entity = entity;
         addClassName("entity-panel-360");
 
+        // Define dark-mode-aware color tokens as CSS custom properties
+        // These override the spec's hardcoded colors to support both light and dark themes
+        var styleElement = getElement().getNode();
+        getStyle().set("--entity-amber", "#b4790b");
+        getStyle().set("--entity-violet", "#7548d6");
+        getStyle().set("--entity-green", "#1c9a6c");
+        getElement().executeJs("this.style.setProperty('--entity-amber', '#b4790b'); " +
+                "this.style.setProperty('--entity-violet', '#7548d6'); " +
+                "this.style.setProperty('--entity-green', '#1c9a6c'); " +
+                "(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) && " +
+                "(this.style.setProperty('--entity-amber', '#e0a840'), " +
+                "this.style.setProperty('--entity-violet', '#a686f0'), " +
+                "this.style.setProperty('--entity-green', '#3ecf8e'))");
+
         // Use inline styles to apply Lumo-based design matching the entity-360 mock
         getStyle().set("display", "flex");
         getStyle().set("flex-direction", "column");
@@ -179,22 +193,34 @@ public class EntityPanel extends Div {
         content.addClassName("entity-related-content");
         content.getStyle().set("gap", "6px");
 
-        for (var prop : propositions) {
-            var itemSpan = new Span(prop.getText());
-            itemSpan.addClassName("entity-related-item");
-            itemSpan.getStyle().set("display", "flex");
-            itemSpan.getStyle().set("align-items", "center");
-            itemSpan.getStyle().set("gap", "10px");
-            itemSpan.getStyle().set("padding", "8px 10px");
-            itemSpan.getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
-            itemSpan.getStyle().set("border-radius", "6px");
-            itemSpan.getStyle().set("background", "var(--lumo-contrast-5pct)");
-            itemSpan.getStyle().set("font-size", "12px");
-            itemSpan.getStyle().set("overflow", "hidden");
-            itemSpan.getStyle().set("text-overflow", "ellipsis");
-            itemSpan.getStyle().set("white-space", "nowrap");
+        // Render up to 3 propositions, then show "Show N more" link if needed
+        int visibleCount = Math.min(3, propositions.size());
+        for (int i = 0; i < visibleCount; i++) {
+            var prop = propositions.get(i);
+            addPropositionItem(content, prop);
+        }
 
-            content.add(itemSpan);
+        // Add "Show N more" link if there are more than 3 propositions
+        if (propositions.size() > 3) {
+            var showMoreDiv = new Div();
+            showMoreDiv.getStyle().set("padding", "4px 10px");
+            var showMoreLink = new Span("Show " + (propositions.size() - 3) + " more →");
+            showMoreLink.getStyle().set("font-size", "11.5px");
+            showMoreLink.getStyle().set("color", "var(--lumo-primary-color)");
+            showMoreLink.getStyle().set("font-weight", "600");
+            showMoreLink.getStyle().set("cursor", "pointer");
+
+            // Expand on click
+            showMoreLink.getElement().addEventListener("click", e -> {
+                // Clear visible items and show all
+                content.removeAll();
+                for (var prop : propositions) {
+                    addPropositionItem(content, prop);
+                }
+            });
+
+            showMoreDiv.add(showMoreLink);
+            content.add(showMoreDiv);
         }
 
         var summaryText = "Mentioned in " + propositions.size() + " memor"
@@ -211,6 +237,57 @@ public class EntityPanel extends Div {
         details.addClassName("entity-related-section");
 
         return details;
+    }
+
+    private void addPropositionItem(VerticalLayout content, Proposition prop) {
+        var itemRow = new Span();  // Use Span for test compatibility
+        itemRow.addClassName("entity-related-item");
+        itemRow.getStyle().set("display", "flex");
+        itemRow.getStyle().set("align-items", "center");
+        itemRow.getStyle().set("gap", "10px");
+        itemRow.getStyle().set("padding", "8px 10px");
+        itemRow.getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
+        itemRow.getStyle().set("border-radius", "6px");
+        itemRow.getStyle().set("background", "var(--lumo-contrast-5pct)");
+        itemRow.getStyle().set("font-size", "12px");
+
+        var textSpan = new Span(prop.getText());
+        textSpan.getStyle().set("flex", "1");
+        textSpan.getStyle().set("overflow", "hidden");
+        textSpan.getStyle().set("text-overflow", "ellipsis");
+        textSpan.getStyle().set("white-space", "nowrap");
+
+        // Add status badge: Confirmed for high confidence (>= 0.8), Tentative otherwise
+        var statusBadge = new Span();
+        statusBadge.addClassName("entity-status-badge");
+        double confidence = prop.getConfidence();
+        boolean isConfirmed = confidence >= 0.8;
+        String statusText = isConfirmed ? "Confirmed" : "Tentative";
+        statusBadge.setText(statusText);
+
+        statusBadge.getStyle().set("font-size", "10px");
+        statusBadge.getStyle().set("font-weight", "600");
+        statusBadge.getStyle().set("padding", "1px 7px");
+        statusBadge.getStyle().set("border-radius", "999px");
+        statusBadge.getStyle().set("flex-shrink", "0");
+
+        if (isConfirmed) {
+            // Green styling for Confirmed
+            statusBadge.getStyle().set("background", "var(--lumo-success-color-10pct)");
+            statusBadge.getStyle().set("color", "var(--lumo-success-color)");
+        } else {
+            // Amber styling for Tentative
+            statusBadge.getStyle().set("background", "var(--lumo-warning-color-10pct)");
+            statusBadge.getStyle().set("color", "var(--lumo-warning-color)");
+        }
+
+        // Add arrow affordance
+        var arrow = new Span("→");
+        arrow.getStyle().set("color", "var(--lumo-tertiary-text-color)");
+        arrow.getStyle().set("flex-shrink", "0");
+
+        itemRow.add(textSpan, statusBadge, arrow);
+        content.add(itemRow);
     }
 
     private String getPrimaryLabel(Set<String> labels) {
@@ -231,7 +308,9 @@ public class EntityPanel extends Div {
 
     /**
      * Load and render additional related-records sections (contact facts, people, orgs, emails,
-     * meetings, edge chips). Renders each non-empty category as a collapsible Details section.
+     * meetings, edge chips). Renders each non-empty category as a Details section with proper
+     * ordering and styling to match entity-360 spec hierarchy.
+     * Order: Contact Facts → Relationships → [Mentioned in memories] → People → Orgs → Emails → Meetings
      *
      * @param relatedRecordsLoader looks up RelatedRecords by entity id, or null to omit related records
      */
@@ -245,38 +324,40 @@ public class EntityPanel extends Div {
             return;
         }
 
-        // Render contact facts section if non-empty
+        // Render contact facts section if non-empty (first in order after header)
         if (relatedRecords.contactFacts() != null && !relatedRecords.contactFacts().isEmpty()) {
-            add(createContactFactsSection(relatedRecords.contactFacts()));
+            add(createContactFactsDetailsSection(relatedRecords.contactFacts()));
         }
+
+        // Render edge chips section if non-empty (second in order)
+        if (relatedRecords.edgeChips() != null && !relatedRecords.edgeChips().isEmpty()) {
+            add(createEdgeChipsDetailsSection(relatedRecords.edgeChips()));
+        }
+
+        // Note: Mentioned in memories is added in constructor, so order is: Contact → Relationships → Mentioned in
 
         // Render people section if non-empty
         if (relatedRecords.people() != null && !relatedRecords.people().isEmpty()) {
-            add(createRelatedItemsSection("People", relatedRecords.people()));
+            add(createRelatedItemsDetailsSection("People", relatedRecords.people()));
         }
 
         // Render organizations section if non-empty
         if (relatedRecords.organizations() != null && !relatedRecords.organizations().isEmpty()) {
-            add(createRelatedItemsSection("Organizations", relatedRecords.organizations()));
+            add(createRelatedItemsDetailsSection("Organizations", relatedRecords.organizations()));
         }
 
         // Render emails section if non-empty
         if (relatedRecords.emails() != null && !relatedRecords.emails().isEmpty()) {
-            add(createRelatedItemsSection("Emails", relatedRecords.emails()));
+            add(createRelatedItemsDetailsSection("Emails", relatedRecords.emails()));
         }
 
         // Render meetings section if non-empty
         if (relatedRecords.meetings() != null && !relatedRecords.meetings().isEmpty()) {
-            add(createRelatedItemsSection("Meetings", relatedRecords.meetings()));
-        }
-
-        // Render edge chips section if non-empty
-        if (relatedRecords.edgeChips() != null && !relatedRecords.edgeChips().isEmpty()) {
-            add(createEdgeChipsSection(relatedRecords.edgeChips()));
+            add(createRelatedItemsDetailsSection("Meetings", relatedRecords.meetings()));
         }
     }
 
-    private Details createContactFactsSection(List<String> contactFacts) {
+    private Details createContactFactsDetailsSection(List<String> contactFacts) {
         var content = new Div();
         content.addClassName("entity-contact-facts-content");
         content.getStyle().set("display", "grid");
@@ -284,24 +365,18 @@ public class EntityPanel extends Div {
         content.getStyle().set("gap", "8px");
 
         for (var fact : contactFacts) {
-            var factDiv = new Div();
-            factDiv.addClassName("entity-related-item");
-            factDiv.getStyle().set("display", "flex");
-            factDiv.getStyle().set("align-items", "center");
-            factDiv.getStyle().set("gap", "8px");
-            factDiv.getStyle().set("padding", "7px 10px");
-            factDiv.getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
-            factDiv.getStyle().set("border-radius", "6px");
-            factDiv.getStyle().set("background", "var(--lumo-contrast-5pct)");
-            factDiv.getStyle().set("font-size", "12px");
-
             var factSpan = new Span(fact);
-            factSpan.getStyle().set("overflow", "hidden");
-            factSpan.getStyle().set("text-overflow", "ellipsis");
-            factSpan.getStyle().set("white-space", "nowrap");
+            factSpan.addClassName("entity-related-item");
+            factSpan.getStyle().set("display", "flex");
+            factSpan.getStyle().set("align-items", "center");
+            factSpan.getStyle().set("gap", "8px");
+            factSpan.getStyle().set("padding", "7px 10px");
+            factSpan.getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
+            factSpan.getStyle().set("border-radius", "6px");
+            factSpan.getStyle().set("background", "var(--lumo-contrast-5pct)");
+            factSpan.getStyle().set("font-size", "12px");
 
-            factDiv.add(factSpan);
-            content.add(factDiv);
+            content.add(factSpan);
         }
 
         var summary = new Span("Contact Facts");
@@ -318,38 +393,40 @@ public class EntityPanel extends Div {
         return details;
     }
 
-    private Details createRelatedItemsSection(String title, List<RelatedItem> items) {
+    private Details createRelatedItemsDetailsSection(String title, List<RelatedItem> items) {
         var content = new VerticalLayout();
         content.setPadding(false);
         content.setSpacing(false);
         content.addClassName("entity-related-items-content");
         content.getStyle().set("gap", "5px");
 
-        for (var item : items) {
-            var itemRow = new Div();
-            itemRow.addClassName("entity-related-item");
-            itemRow.getStyle().set("display", "flex");
-            itemRow.getStyle().set("align-items", "center");
-            itemRow.getStyle().set("gap", "10px");
-            itemRow.getStyle().set("padding", "7px 10px");
-            itemRow.getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
-            itemRow.getStyle().set("border-radius", "6px");
-            itemRow.getStyle().set("background", "var(--lumo-contrast-5pct)");
-            itemRow.getStyle().set("font-size", "12px");
+        int visibleCount = Math.min(3, items.size());
+        for (int i = 0; i < visibleCount; i++) {
+            var item = items.get(i);
+            addRelatedItemRow(content, item);
+        }
 
-            var titleSpan = new Span(item.title());
-            titleSpan.getStyle().set("flex", "1");
-            titleSpan.getStyle().set("overflow", "hidden");
-            titleSpan.getStyle().set("text-overflow", "ellipsis");
-            titleSpan.getStyle().set("white-space", "nowrap");
+        // Add "Show N more" link if there are more than 3 items
+        if (items.size() > 3) {
+            var showMoreDiv = new Div();
+            showMoreDiv.getStyle().set("padding", "4px 10px");
+            var showMoreLink = new Span("Show " + (items.size() - 3) + " more →");
+            showMoreLink.getStyle().set("font-size", "11.5px");
+            showMoreLink.getStyle().set("color", "var(--lumo-primary-color)");
+            showMoreLink.getStyle().set("font-weight", "600");
+            showMoreLink.getStyle().set("cursor", "pointer");
 
-            var subtitleSpan = new Span(item.subtitle());
-            subtitleSpan.getStyle().set("color", "var(--lumo-tertiary-text-color)");
-            subtitleSpan.getStyle().set("font-size", "11px");
-            subtitleSpan.getStyle().set("flex-shrink", "0");
+            // Expand on click
+            showMoreLink.getElement().addEventListener("click", e -> {
+                // Clear visible items and show all
+                content.removeAll();
+                for (var relItem : items) {
+                    addRelatedItemRow(content, relItem);
+                }
+            });
 
-            itemRow.add(titleSpan, subtitleSpan);
-            content.add(itemRow);
+            showMoreDiv.add(showMoreLink);
+            content.add(showMoreDiv);
         }
 
         var summary = new Span(title);
@@ -366,7 +443,34 @@ public class EntityPanel extends Div {
         return details;
     }
 
-    private Details createEdgeChipsSection(List<String> edgeChips) {
+    private void addRelatedItemRow(VerticalLayout content, RelatedItem item) {
+        var itemRow = new Div();
+        itemRow.addClassName("entity-related-item");
+        itemRow.getStyle().set("display", "flex");
+        itemRow.getStyle().set("align-items", "center");
+        itemRow.getStyle().set("gap", "10px");
+        itemRow.getStyle().set("padding", "7px 10px");
+        itemRow.getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
+        itemRow.getStyle().set("border-radius", "6px");
+        itemRow.getStyle().set("background", "var(--lumo-contrast-5pct)");
+        itemRow.getStyle().set("font-size", "12px");
+
+        var titleSpan = new Span(item.title());
+        titleSpan.getStyle().set("flex", "1");
+        titleSpan.getStyle().set("overflow", "hidden");
+        titleSpan.getStyle().set("text-overflow", "ellipsis");
+        titleSpan.getStyle().set("white-space", "nowrap");
+
+        var subtitleSpan = new Span(item.subtitle());
+        subtitleSpan.getStyle().set("color", "var(--lumo-tertiary-text-color)");
+        subtitleSpan.getStyle().set("font-size", "11px");
+        subtitleSpan.getStyle().set("flex-shrink", "0");
+
+        itemRow.add(titleSpan, subtitleSpan);
+        content.add(itemRow);
+    }
+
+    private Details createEdgeChipsDetailsSection(List<String> edgeChips) {
         var content = new Div();
         content.addClassName("entity-edge-chips-content");
         content.getStyle().set("display", "flex");
@@ -387,22 +491,22 @@ public class EntityPanel extends Div {
             chipSpan.getStyle().set("background", "var(--lumo-contrast-5pct)");
             chipSpan.getStyle().set("color", "var(--lumo-secondary-text-color)");
 
-            // Add colored dot based on relationship type
+            // Add colored dot based on relationship type (using CSS custom properties for dark mode support)
             var dot = new Div();
             dot.getStyle().set("width", "6px");
             dot.getStyle().set("height", "6px");
             dot.getStyle().set("border-radius", "50%");
             dot.getStyle().set("flex-shrink", "0");
 
-            // Determine color based on relationship type
+            // Determine color based on relationship type (use CSS custom properties defined in constructor)
             if (chip.contains("WORKS_FOR")) {
                 dot.getStyle().set("background", "var(--lumo-primary-color)");
             } else if (chip.contains("HAS_EMAIL")) {
-                dot.getStyle().set("background", "#b4790b"); // Amber
+                dot.getStyle().set("background", "var(--entity-amber)");
             } else if (chip.contains("EMAILED")) {
-                dot.getStyle().set("background", "#7548d6"); // Violet
+                dot.getStyle().set("background", "var(--entity-violet)");
             } else if (chip.contains("ATTENDS")) {
-                dot.getStyle().set("background", "#1c9a6c"); // Green
+                dot.getStyle().set("background", "var(--entity-green)");
             } else {
                 dot.getStyle().set("background", "var(--lumo-primary-color)");
             }
