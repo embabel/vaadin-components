@@ -455,16 +455,12 @@ public class LineageSection extends VerticalLayout {
                 refDiv.add(txt);
 
                 boolean isOpenable = openable == null || openable.test(ref);
-                if (isOpenable) {
-                    var go = new Span("Open →");
-                    go.addClassName("ref-go");
-                    go.getStyle().set("cursor", "pointer");
-                    go.addClickListener(e -> {
-                        if (onOpenRef != null) {
-                            onOpenRef.accept(ref);
-                        }
-                    });
-                    refDiv.add(go);
+                if (onOpenRef != null && isOpenable) {
+                    var goButton = new Button("Open →");
+                    goButton.addClassName("ref-go");
+                    goButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+                    goButton.addClickListener(e -> onOpenRef.accept(ref));
+                    refDiv.add(goButton);
                 }
 
                 refList.add(refDiv);
@@ -551,21 +547,17 @@ public class LineageSection extends VerticalLayout {
                 var detailSpan = new Span(entry.ref());
                 detailSpan.setTitle(entry.ref());
                 detail.add(detailSpan);
-                stepBody.add(detail);
 
                 boolean isOpenable = openable == null || openable.test(entry.ref());
-                if (isOpenable) {
-                    var go = new Span("Open →");
-                    go.addClassName("ref-go");
-                    go.getStyle().set("cursor", "pointer");
-                    go.addClickListener(e -> {
-                        if (onOpenRef != null) {
-                            onOpenRef.accept(entry.ref());
-                        }
-                    });
-                    detail.add(go);
+                if (onOpenRef != null && isOpenable) {
+                    var goButton = new Button("Open →");
+                    goButton.addClassName("ref-go");
+                    goButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+                    goButton.addClickListener(e -> onOpenRef.accept(entry.ref()));
+                    detail.add(goButton);
                 }
 
+                stepBody.add(detail);
                 step.add(stepBody);
                 steps.add(step);
             }
