@@ -1464,6 +1464,12 @@ vaadin-login-form-wrapper::part(form-title) {
   margin-bottom: var(--lumo-space-s);
 }
 
+/* ===== Dialog Helpers ===== */
+
+vaadin-dialog-overlay.content-fit-dialog::part(content) {
+  padding: var(--lumo-space-m);
+}
+
 /* ===== Mobile Responsive ===== */
 
 @media (max-width: 768px) {
