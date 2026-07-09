@@ -212,18 +212,18 @@ public class DedupPreviewPanel extends VerticalLayout {
         header.addClassName("dedup-cluster-head");
         header.getStyle().set("display", "flex");
         header.getStyle().set("align-items", "center");
-        header.getStyle().set("gap", "var(--lumo-space-s)");
-        header.getStyle().set("padding", "var(--lumo-space-m)");
+        header.getStyle().set("gap", "8px");
+        header.getStyle().set("padding", "11px 14px");
         header.getStyle().set("border-bottom", "1px solid var(--lumo-contrast-10pct)");
 
         var title = new Span(cluster.survivorText());
         title.getStyle().set("font-weight", "600");
-        title.getStyle().set("font-size", "var(--lumo-font-size-m)");
+        title.getStyle().set("font-size", "12.5px");
         title.getStyle().set("flex", "1");
         header.add(title);
 
         var sigInfo = new Span(cluster.losers().size() + 1 + " propositions");
-        sigInfo.getStyle().set("font-size", "var(--lumo-font-size-xs)");
+        sigInfo.getStyle().set("font-size", "11px");
         sigInfo.getStyle().set("color", "var(--lumo-secondary-text-color)");
         header.add(sigInfo);
 
@@ -232,10 +232,10 @@ public class DedupPreviewPanel extends VerticalLayout {
         // Body
         var body = new Div();
         body.addClassName("dedup-cluster-body");
-        body.getStyle().set("padding", "var(--lumo-space-m)");
+        body.getStyle().set("padding", "10px 14px 14px");
         body.getStyle().set("display", "flex");
         body.getStyle().set("flex-direction", "column");
-        body.getStyle().set("gap", "var(--lumo-space-xs)");
+        body.getStyle().set("gap", "6px");
 
         // Survivor row
         var survivorRow = renderMemberRow(cluster.survivorId(), cluster.survivorText(), 1.0, true, cluster);
@@ -255,8 +255,8 @@ public class DedupPreviewPanel extends VerticalLayout {
         var actions = new Div();
         actions.addClassName("dedup-cluster-actions");
         actions.getStyle().set("display", "flex");
-        actions.getStyle().set("gap", "var(--lumo-space-xs)");
-        actions.getStyle().set("padding-top", "var(--lumo-space-xs)");
+        actions.getStyle().set("gap", "8px");
+        actions.getStyle().set("padding-top", "4px");
 
         var applyBtn = new Button("Apply cluster");
         applyBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
@@ -281,9 +281,9 @@ public class DedupPreviewPanel extends VerticalLayout {
         row.addClassName("dedup-member-row");
         row.getStyle().set("display", "flex");
         row.getStyle().set("align-items", "center");
-        row.getStyle().set("gap", "var(--lumo-space-xs)");
-        row.getStyle().set("padding", "var(--lumo-space-xs)");
-        row.getStyle().set("border-radius", "var(--lumo-border-radius-m)");
+        row.getStyle().set("gap", "10px");
+        row.getStyle().set("padding", "8px 10px");
+        row.getStyle().set("border-radius", "6px");
         row.getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
         row.getStyle().set("position", "relative");
 
@@ -296,7 +296,7 @@ public class DedupPreviewPanel extends VerticalLayout {
 
         // Badge
         var badge = new Span(isSurvivor ? "Survivor" : "Merge");
-        badge.getStyle().set("font-size", "var(--lumo-font-size-xs)");
+        badge.getStyle().set("font-size", "9.5px");
         badge.getStyle().set("font-weight", "700");
         badge.getStyle().set("text-transform", "uppercase");
         badge.getStyle().set("letter-spacing", ".03em");
@@ -317,14 +317,14 @@ public class DedupPreviewPanel extends VerticalLayout {
         // Text
         var textSpan = new Span(text);
         textSpan.getStyle().set("flex", "1");
-        textSpan.getStyle().set("font-size", "var(--lumo-font-size-m)");
+        textSpan.getStyle().set("font-size", "12.5px");
         textSpan.getStyle().set("overflow", "hidden");
         textSpan.getStyle().set("text-overflow", "ellipsis");
         textSpan.getStyle().set("white-space", "nowrap");
 
         // Score
         var score = new Span(String.format("conf %.2f", confidence));
-        score.getStyle().set("font-size", "var(--lumo-font-size-xs)");
+        score.getStyle().set("font-size", "11px");
         score.getStyle().set("color", "var(--lumo-secondary-text-color)");
         score.getStyle().set("flex-shrink", "0");
         score.getStyle().set("width", "56px");
@@ -339,10 +339,10 @@ public class DedupPreviewPanel extends VerticalLayout {
         infoBtn.getStyle().set("border-radius", "50%");
         infoBtn.getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
         infoBtn.getStyle().set("background", "var(--lumo-base-color)");
-        infoBtn.getStyle().set("color", "var(--lumo-secondary-text-color)");
+        infoBtn.getStyle().set("color", "var(--lumo-tertiary-text-color)");
         infoBtn.getStyle().set("padding", "0");
         infoBtn.getStyle().set("min-width", "20px");
-        infoBtn.getStyle().set("font-size", "12px");
+        infoBtn.getStyle().set("font-size", "11px");
         infoBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ICON);
         infoBtn.getElement().setAttribute("title", "View merge signals");
 
@@ -368,20 +368,20 @@ public class DedupPreviewPanel extends VerticalLayout {
         var popover = new Div();
         popover.addClassName("dedup-signal-popover");
         popover.getStyle().set("position", "absolute");
-        popover.getStyle().set("top", "calc(100% + 8px)");
+        popover.getStyle().set("top", "38px");
         popover.getStyle().set("right", "44px");
         popover.getStyle().set("width", "260px");
         popover.getStyle().set("background", "var(--lumo-base-color)");
         popover.getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
-        popover.getStyle().set("border-radius", "var(--lumo-border-radius-m)");
-        popover.getStyle().set("box-shadow", "var(--lumo-box-shadow-l)");
+        popover.getStyle().set("border-radius", "6px");
+        popover.getStyle().set("box-shadow", "0 6px 24px rgba(20,22,28,.18)");
         popover.getStyle().set("z-index", "5");
-        popover.getStyle().set("padding", "var(--lumo-space-s)");
+        popover.getStyle().set("padding", "12px 14px");
 
         var heading = new Span("Merge signals — vs. survivor");
         heading.getStyle().set("display", "block");
-        heading.getStyle().set("margin-bottom", "var(--lumo-space-xs)");
-        heading.getStyle().set("font-size", "var(--lumo-font-size-xs)");
+        heading.getStyle().set("margin-bottom", "8px");
+        heading.getStyle().set("font-size", "11.5px");
         heading.getStyle().set("font-weight", "650");
         popover.add(heading);
 
@@ -396,7 +396,7 @@ public class DedupPreviewPanel extends VerticalLayout {
                 sigRow.getStyle().set("align-items", "center");
                 sigRow.getStyle().set("justify-content", "space-between");
                 sigRow.getStyle().set("padding", "4px 0");
-                sigRow.getStyle().set("font-size", "var(--lumo-font-size-xs)");
+                sigRow.getStyle().set("font-size", "11.5px");
 
                 var sigName = new Span(signal.signal());
                 sigName.addClassName("collapse-signal");
@@ -411,7 +411,7 @@ public class DedupPreviewPanel extends VerticalLayout {
                 sigBar.getStyle().set("border-radius", "3px");
                 sigBar.getStyle().set("background", "var(--lumo-contrast-10pct)");
                 sigBar.getStyle().set("overflow", "hidden");
-                sigBar.getStyle().set("margin", "0 var(--lumo-space-xs)");
+                sigBar.getStyle().set("margin", "0 8px");
 
                 var sigBarInner = new Div();
                 sigBarInner.getStyle().set("height", "100%");
@@ -422,7 +422,7 @@ public class DedupPreviewPanel extends VerticalLayout {
                 var sigVal = new Span(String.format("%.2f", signal.score()));
                 sigVal.getStyle().set("width", "32px");
                 sigVal.getStyle().set("text-align", "right");
-                sigVal.getStyle().set("color", "var(--lumo-secondary-text-color)");
+                sigVal.getStyle().set("color", "var(--lumo-tertiary-text-color)");
                 sigVal.getStyle().set("font-variant-numeric", "tabular-nums");
 
                 sigRow.add(sigName, sigBar, sigVal);
@@ -430,10 +430,10 @@ public class DedupPreviewPanel extends VerticalLayout {
             }
 
             var verdict = new Div();
-            verdict.getStyle().set("margin-top", "var(--lumo-space-xs)");
-            verdict.getStyle().set("padding-top", "var(--lumo-space-xs)");
+            verdict.getStyle().set("margin-top", "8px");
+            verdict.getStyle().set("padding-top", "8px");
             verdict.getStyle().set("border-top", "1px solid var(--lumo-contrast-10pct)");
-            verdict.getStyle().set("font-size", "var(--lumo-font-size-xs)");
+            verdict.getStyle().set("font-size", "11px");
             verdict.getStyle().set("color", "var(--lumo-success-color)");
             verdict.getStyle().set("font-weight", "600");
             verdict.setText("✓ Above merge threshold (0.85)");
