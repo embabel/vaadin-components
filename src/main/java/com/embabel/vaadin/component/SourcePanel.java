@@ -96,28 +96,26 @@ public class SourcePanel extends Div {
 
         headerDiv.add(titleSpan, kindBadge);
 
-        // Close button (flexes to the right)
-        if (true) {  // close button is always present structurally but only active when handler set
-            var spacer = new Div();
-            spacer.getStyle().set("flex", "1");
-            headerDiv.add(spacer);
+        // Close affordance, pushed to the right. Always rendered; only acts when a handler is set.
+        var spacer = new Div();
+        spacer.getStyle().set("flex", "1");
+        headerDiv.add(spacer);
 
-            var closeBtn = new Div();
-            closeBtn.addClassName("source-close");
-            closeBtn.getStyle().set("color", "var(--lumo-tertiary-text-color)");
-            closeBtn.getStyle().set("cursor", "pointer");
-            closeBtn.getStyle().set("padding", "2px");
-            closeBtn.getStyle().set("flex-shrink", "0");
-            closeBtn.setText("✕");
-            closeBtn.getStyle().set("font-size", "16px");
-            closeBtn.getStyle().set("line-height", "1");
-            closeBtn.getElement().addEventListener("click", e -> {
-                if (onClose != null) {
-                    onClose.run();
-                }
-            });
-            headerDiv.add(closeBtn);
-        }
+        var closeBtn = new Div();
+        closeBtn.addClassName("source-close");
+        closeBtn.getStyle().set("color", "var(--lumo-tertiary-text-color)");
+        closeBtn.getStyle().set("cursor", "pointer");
+        closeBtn.getStyle().set("padding", "2px");
+        closeBtn.getStyle().set("flex-shrink", "0");
+        closeBtn.setText("✕");
+        closeBtn.getStyle().set("font-size", "16px");
+        closeBtn.getStyle().set("line-height", "1");
+        closeBtn.getElement().addEventListener("click", e -> {
+            if (onClose != null) {
+                onClose.run();
+            }
+        });
+        headerDiv.add(closeBtn);
 
         add(headerDiv);
 
