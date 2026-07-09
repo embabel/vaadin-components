@@ -22,8 +22,6 @@ import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.Shortcuts;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.Key;
-import com.vaadin.flow.component.Shortcuts;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
@@ -190,16 +188,18 @@ public class PropositionCard extends Div {
     private void showCollapseDialog(CollapseExplanation explanation) {
         var dialog = new Dialog();
         dialog.setHeaderTitle("Why this memory was merged");
-        dialog.setWidth("520px");
         dialog.setCloseOnOutsideClick(true);
         // Esc-to-close: the built-in closeOnEsc only fires when focus is inside the overlay, and
         // this dialog opens over the user drawer, which keeps focus — so Esc lands on the body and
         // never reaches it. A UI-scoped shortcut tied to the dialog's lifecycle closes it wherever
         // focus happens to be, and is torn down automatically when the dialog detaches.
         Shortcuts.addShortcutListener(dialog, dialog::close, Key.ESCAPE);
+        // Resizable + draggable + content-fit sizing with viewport caps.
+        Dialogs.resizableContentFit(dialog);
+        // Preserve the custom overlay class for styling.
         // Class must go on the teleported overlay, not the (hidden) dialog host, so styling
         // and tests can target the visible dialog.
-        dialog.getElement().setProperty("overlayClass", "collapse-explanation-dialog");
+        dialog.getElement().setProperty("overlayClass", "content-fit-dialog collapse-explanation-dialog");
 
         var content = new VerticalLayout();
         content.setPadding(false);
@@ -325,9 +325,11 @@ public class PropositionCard extends Div {
     private void showLineageDialog(LineageProvider provider) {
         var dialog = new Dialog();
         dialog.setHeaderTitle("Lineage");
-        dialog.setWidth("520px");
-        dialog.getElement().setProperty("overlayClass", "lineage-dialog");
         Shortcuts.addShortcutListener(dialog, dialog::close, Key.ESCAPE);
+        // Resizable + draggable + content-fit sizing with viewport caps.
+        Dialogs.resizableContentFit(dialog);
+        // Preserve the custom overlay class for styling.
+        dialog.getElement().setProperty("overlayClass", "content-fit-dialog lineage-dialog");
 
         var section = new LineageSection(provider);
         if (onUndoMember != null) {
@@ -344,10 +346,14 @@ public class PropositionCard extends Div {
     // fire the DOM click event.
     void showEntityDialog(NamedEntity entity) {
         var dialog = new Dialog();
-        dialog.setWidth("640px");
         dialog.setCloseOnEsc(true);
         dialog.setCloseOnOutsideClick(true);
-        dialog.getElement().setProperty("overlayClass", "entity-360-dialog");
+        // Add Esc-to-close shortcut (similar to other dialogs in this card)
+        Shortcuts.addShortcutListener(dialog, dialog::close, Key.ESCAPE);
+        // Resizable + draggable + content-fit sizing with viewport caps.
+        Dialogs.resizableContentFit(dialog);
+        // Preserve the custom overlay class for styling.
+        dialog.getElement().setProperty("overlayClass", "content-fit-dialog entity-360-dialog");
 
         var panel = new EntityPanel(entity, relatedPropositionsLoader);
         panel.setOnClose(dialog::close);
@@ -355,9 +361,6 @@ public class PropositionCard extends Div {
             panel.setRelatedRecords(relatedRecordsLoader);
         }
         dialog.add(panel);
-
-        // Add Esc-to-close shortcut (similar to other dialogs in this card)
-        Shortcuts.addShortcutListener(dialog, dialog::close, Key.ESCAPE);
 
         dialog.open();
     }

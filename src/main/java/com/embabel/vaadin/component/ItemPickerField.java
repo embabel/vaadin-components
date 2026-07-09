@@ -15,6 +15,7 @@
  */
 package com.embabel.vaadin.component;
 
+import com.embabel.vaadin.component.Dialogs;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
@@ -56,7 +57,7 @@ public class ItemPickerField extends Div {
     private void openDialog() {
         var dialog = new Dialog();
         dialog.setHeaderTitle(label);
-        dialog.setWidth("500px");
+        Dialogs.resizableContentFit(dialog);
         dialog.setMaxHeight("80vh");
 
         // Search filter
