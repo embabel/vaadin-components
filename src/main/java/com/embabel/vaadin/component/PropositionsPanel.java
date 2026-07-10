@@ -287,6 +287,11 @@ public class PropositionsPanel extends VerticalLayout {
                 .map(c -> (PropositionCard) c)
                 .toList();
         int shown = 0;
+        // Clustered mode groups cards under a shared .cluster-container (header + border); track
+        // whether any member of each container matched so the whole container can be hidden when
+        // none did, instead of leaving an empty bordered box behind (same failure mode the
+        // .scored-card-wrapper handling below fixes for scored mode).
+        var clusterHits = new java.util.LinkedHashMap<Component, Boolean>();
         for (var card : cards) {
             boolean hit = q.isEmpty() || matchesQuery(card.getProposition(), q);
             // In scored mode each card sits inside a .scored-card-wrapper that carries its own
@@ -295,8 +300,14 @@ public class PropositionsPanel extends VerticalLayout {
             var wrapper = card.getParent()
                     .filter(p -> p.hasClassName("scored-card-wrapper"))
                     .orElse(null);
+            var clusterContainer = card.getParent()
+                    .filter(p -> p.hasClassName("cluster-container"))
+                    .orElse(null);
             if (wrapper != null) {
                 wrapper.setVisible(hit);
+            } else if (clusterContainer != null) {
+                card.setVisible(hit);
+                clusterHits.merge(clusterContainer, hit, Boolean::logicalOr);
             } else {
                 card.setVisible(hit);
             }
@@ -304,6 +315,7 @@ public class PropositionsPanel extends VerticalLayout {
                 shown++;
             }
         }
+        clusterHits.forEach(Component::setVisible);
         propositionCountSpan.setText("(" + shown + (shown == 1 ? " memory)" : " memories)"));
     }
 

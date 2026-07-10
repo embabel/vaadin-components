@@ -46,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -474,6 +476,70 @@ class MemoryPolishTest {
             panel.setSearchQuery("");
             assertTrue(wrappers.stream().allMatch(Component::isVisible),
                     "clearing the filter must show all wrappers again");
+        } finally {
+            UI.setCurrent(null);
+        }
+    }
+
+    // --- E2. L1 filter works in clustered mode (container visibility, not just member cards) ----
+
+    @Test
+    void clusteredModeFilterHidesEmptyClusterContainersAndRestoresOnClear() {
+        var ui = withUi();
+        try {
+            var anchorA = prop("anchor-a", "Mountain Hiking Preferences and Mentorship", Instant.now());
+            var similarA = prop("similar-a", "Ben's mentorship notes on hiking trips", Instant.now().minusSeconds(10));
+            var anchorB = prop("anchor-b", "Priya organizes the guild lunch", Instant.now().minusSeconds(20));
+            var similarB = prop("similar-b", "Priya books the lunch venue", Instant.now().minusSeconds(30));
+
+            var simA = mockSimilarityResult(similarA, 0.8);
+            var simB = mockSimilarityResult(similarB, 0.8);
+
+            var repo = mock(PropositionRepository.class);
+            when(repo.query(any(PropositionQuery.class)))
+                    .thenReturn(List.of(anchorA, similarA, anchorB, similarB));
+            when(repo.findClusters(anyDouble(), anyInt(), any(PropositionQuery.class)))
+                    .thenReturn(List.of(
+                            new com.embabel.agent.rag.service.Cluster<>(anchorA, List.of(simA)),
+                            new com.embabel.agent.rag.service.Cluster<>(anchorB, List.of(simB))));
+
+            var panel = new PropositionsPanel(repo, entityResolver);
+            panel.setContextId(CTX);
+            ui.add(panel);
+            panel.refresh();
+
+            var toggle = allComponents(panel).stream()
+                    .filter(c -> c instanceof Button && c.hasClassName("cluster-toggle"))
+                    .map(c -> (Button) c)
+                    .findFirst()
+                    .orElseThrow();
+            toggle.click();
+
+            var containers = allComponents(panel).stream()
+                    .filter(c -> c.hasClassName("cluster-container"))
+                    .toList();
+            assertEquals(2, containers.size(), "both cluster containers must be in the tree");
+
+            // Matches only members of the "mentorship" cluster.
+            panel.setSearchQuery("mentorship");
+
+            var visibleContainers = containers.stream().filter(Component::isVisible).toList();
+            assertEquals(1, visibleContainers.size(), "only the matching cluster's container must stay visible");
+            var visibleTexts = allTextNodes(visibleContainers.get(0));
+            assertTrue(visibleTexts.stream().anyMatch(t -> t.contains("Mentorship")),
+                    "the matching cluster's container must show its matching card");
+            assertTrue(containers.stream().anyMatch(c -> !c.isVisible()),
+                    "the non-matching cluster's container must be hidden, not just left as an empty box");
+
+            // Clearing the filter restores every container.
+            panel.setSearchQuery("");
+            assertTrue(containers.stream().allMatch(Component::isVisible),
+                    "clearing the filter must show all cluster containers again");
+
+            // A query matching nothing hides every container.
+            panel.setSearchQuery("no-such-term-anywhere");
+            assertTrue(containers.stream().noneMatch(Component::isVisible),
+                    "a query matching nothing must hide every cluster container");
         } finally {
             UI.setCurrent(null);
         }
