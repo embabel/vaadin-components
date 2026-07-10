@@ -1482,3 +1482,26 @@ vaadin-dialog-overlay.content-fit-dialog::part(content) {
     right: var(--lumo-space-s);
   }
 }
+
+/* Memory cards: tight, uniform, full-width — per the Memories-page design review.
+   Lives in the theme (not a per-card injected style) because element virtual children
+   never reach the browser; the theme stylesheet is the reliable delivery path. */
+.proposition-card.proposition-card-full-width {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--lumo-space-s);
+  display: flex;
+  flex-direction: column;
+  gap: var(--lumo-space-xs);
+}
+.proposition-card.proposition-card-full-width .proposition-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.proposition-card.proposition-card-full-width .proposition-relative-time {
+  align-self: flex-end;
+  color: var(--lumo-tertiary-text-color);
+  font-size: var(--lumo-font-size-xs);
+}
