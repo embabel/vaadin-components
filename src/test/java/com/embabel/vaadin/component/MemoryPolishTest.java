@@ -306,6 +306,119 @@ class MemoryPolishTest {
         }
     }
 
+    // --- A. search field is the dominant control of the header row -----------------------------
+
+    /**
+     * Mechanism test for "make the search field dominant": it must carry a flex-grow-friendly
+     * min/max width band (320px-480px) so it visually leads the header row instead of shrinking
+     * to content, while still leaving room for status/clusters/refresh.
+     */
+    @Test
+    void searchFieldHasDominantWidthBand() {
+        var panel = new PropositionsPanel(repoWith(List.of()), entityResolver);
+        panel.setContextId(CTX);
+        panel.refresh();
+
+        var searchField = allComponents(panel).stream()
+                .filter(c -> c instanceof TextField && c.hasClassName("memory-search-field"))
+                .map(c -> (TextField) c)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("expected the header search field"));
+
+        assertEquals("320px", searchField.getMinWidth(), "search field must not shrink below 320px");
+        assertEquals("480px", searchField.getMaxWidth(), "search field must not grow past 480px");
+    }
+
+    // --- B. icon-only controls carry title/aria-label -------------------------------------------
+
+    @Test
+    void searchHelpChipRefreshAndSweepCarryTooltipsAndAriaLabels() {
+        var ui = withUi();
+        try {
+            var repo = repoWith(List.of());
+            var memorySection = new MemorySection(repo, entityResolver, () -> CTX, null, null, null);
+            memorySection.setOnSweep(() -> {});
+            ui.add(memorySection);
+            memorySection.refresh();
+
+            var infoChip = allComponents(memorySection).stream()
+                    .filter(c -> c instanceof Button && c.hasClassName("search-info-chip"))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("expected the '?' search-help chip"));
+            assertEquals("Search help: operators and tips", infoChip.getElement().getAttribute("title"));
+            assertEquals("Search help: operators and tips", infoChip.getElement().getAttribute("aria-label"));
+
+            var refreshButton = allComponents(memorySection).stream()
+                    .filter(c -> c instanceof Button && "Refresh memories".equals(c.getElement().getAttribute("title")))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("expected the refresh button"));
+            assertEquals("Refresh memories", refreshButton.getElement().getAttribute("aria-label"));
+
+            var sweepButton = allComponents(memorySection).stream()
+                    .filter(c -> c instanceof Button && "Sweep".equals(((Button) c).getText()))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("expected the Sweep button"));
+            assertEquals("Run a dedup sweep", sweepButton.getElement().getAttribute("title"));
+            assertEquals("Run a dedup sweep", sweepButton.getElement().getAttribute("aria-label"));
+        } finally {
+            UI.setCurrent(null);
+        }
+    }
+
+    // --- C. scored-card-wrapper full width, via the theme stylesheet --------------------------
+
+    /**
+     * Proves the width rules live in the theme stylesheet (not component-injected virtual-child
+     * CSS, which never renders on the page) and target the wrapper and the card inside it.
+     */
+    @Test
+    void themeStylesheetSetsScoredWrapperAndCardToFullWidth() throws java.io.IOException {
+        var cssPath = java.nio.file.Path.of(
+                "src/main/resources/META-INF/resources/themes/embabel-base/styles.css");
+        var css = java.nio.file.Files.readString(cssPath);
+
+        var wrapperRule = Pattern.compile(
+                "\\.scored-card-wrapper\\s*\\{[^}]*width:\\s*100%[^}]*\\}", Pattern.DOTALL);
+        assertTrue(wrapperRule.matcher(css).find(),
+                "theme stylesheet must set .scored-card-wrapper to width: 100%");
+
+        var cardRule = Pattern.compile(
+                "\\.scored-card-wrapper\\s+\\.proposition-card\\s*\\{[^}]*width:\\s*100%[^}]*\\}", Pattern.DOTALL);
+        assertTrue(cardRule.matcher(css).find(),
+                "theme stylesheet must set .scored-card-wrapper .proposition-card to width: 100%");
+    }
+
+    // --- wrapper-level bare-percentage coverage (explicit) --------------------------------------
+
+    /**
+     * The stray percentage the live app showed sat directly in .scored-card-wrapper, outside the
+     * card itself. This proves the sweep test's text-node walk covers that wrapper level too,
+     * not just inside the card — same mechanism as the self-falsification test above, but with
+     * the rogue badge placed exactly where it was live: as a direct child of the wrapper.
+     */
+    @Test
+    void sweepCatchesABarePercentageAtTheWrapperLevelOutsideTheCard() {
+        var ben = prop("ben-1", "Ben hiked the Tre Cime di Lavaredo loop", Instant.now());
+        var panel = new PropositionsPanel(repoWith(List.of()), entityResolver);
+        panel.setContextId(CTX);
+        panel.showScoredPropositions(List.of(mockSimilarityResult(ben, 0.82)));
+
+        var wrapper = allComponents(panel).stream()
+                .filter(c -> c.hasClassName("scored-card-wrapper"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("expected a .scored-card-wrapper"));
+
+        var rogueBadge = new Span("82%");
+        rogueBadge.addClassName("similarity-badge");
+        wrapper.getElement().appendChild(rogueBadge.getElement());
+
+        var texts = allTextNodes(panel);
+        var offenders = texts.stream()
+                .filter(t -> BARE_PERCENT.matcher(t.trim()).matches() || BARE_DECIMAL.matcher(t.trim()).matches())
+                .toList();
+        assertFalse(offenders.isEmpty(), "sweep must catch a bare percentage sitting directly in the wrapper");
+    }
+
     // --- helpers ---------------------------------------------------------------------------
 
     private static UI withUi() {

@@ -224,6 +224,8 @@ public class MemorySection extends VerticalLayout {
         sweepButton = new Button("Sweep", VaadinIcon.REFRESH.create());
         sweepButton.addClassName("memory-sweep");
         sweepButton.setVisible(false);
+        sweepButton.getElement().setAttribute("title", "Run a dedup sweep");
+        sweepButton.getElement().setAttribute("aria-label", "Run a dedup sweep");
         buttonRow.add(sweepButton);
 
         // "Clear All" button

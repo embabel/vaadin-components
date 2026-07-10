@@ -1482,3 +1482,17 @@ vaadin-dialog-overlay.content-fit-dialog::part(content) {
     right: var(--lumo-space-s);
   }
 }
+
+/* ===== Memory cards ===== */
+/* Scored-results wrapper (PropositionsPanel#showScoredPropositions) needs its width set here,
+   in the theme stylesheet, not via the component's virtual-child style injection — virtual
+   children never render on the page, so that per-card CSS was silently dead. */
+
+.scored-card-wrapper {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.scored-card-wrapper .proposition-card {
+  width: 100%;
+}
