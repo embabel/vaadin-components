@@ -60,6 +60,37 @@ public class PropositionCard extends Div {
     private BiConsumer<String, String> onAfterUndo;
     private Consumer<String> onOpenRef;
     private Predicate<String> openable;
+    private Span relativeTimeSpan;
+    private HorizontalLayout entitiesLayout;
+
+    private static final int MAX_VISIBLE_PILLS = 4;
+
+    /**
+     * Format a creation timestamp as relative time (e.g. "2h ago", "just now").
+     * Returns a short human-readable string showing time elapsed since creation.
+     */
+    public static String formatRelativeTime(java.time.Instant created) {
+        var now = java.time.Instant.now();
+        var durationSeconds = java.time.Duration.between(created, now).getSeconds();
+
+        if (durationSeconds < 60) {
+            return "just now";
+        }
+        var minutes = durationSeconds / 60;
+        if (minutes < 60) {
+            return minutes + "m ago";
+        }
+        var hours = minutes / 60;
+        if (hours < 24) {
+            return hours + "h ago";
+        }
+        var days = hours / 24;
+        if (days < 7) {
+            return days + "d ago";
+        }
+        var weeks = days / 7;
+        return weeks + "w ago";
+    }
 
     /**
      * Convenience constructor for callers that don't explain collapses.
@@ -83,6 +114,10 @@ public class PropositionCard extends Div {
         this.proposition = prop;
         this.entityResolver = entityResolver;
         addClassName("proposition-card");
+        addClassName("proposition-card-full-width");
+
+        // Inject CSS for card styling if not already done
+        injectCardStyles();
 
         var headerLayout = new HorizontalLayout();
         headerLayout.setWidthFull();
@@ -123,10 +158,7 @@ public class PropositionCard extends Div {
         confidenceSpan.addClassName(confidencePercent >= 80 ? "high" :
                 confidencePercent >= 50 ? "medium" : "low");
 
-        var timeSpan = new Span(TIME_FORMATTER.format(prop.getCreated()));
-        timeSpan.addClassName("proposition-time");
-
-        metaLayout.add(confidenceSpan, timeSpan);
+        metaLayout.add(confidenceSpan);
 
         if (collapseExplanationProvider != null) {
             collapseExplanationProvider.explain(prop.getId())
@@ -134,18 +166,35 @@ public class PropositionCard extends Div {
                     .ifPresent(explanation -> metaLayout.add(createCollapseBadge(explanation)));
         }
 
+        // Create relative time span with absolute time as tooltip
+        relativeTimeSpan = new Span(formatRelativeTime(prop.getCreated()));
+        relativeTimeSpan.addClassName("proposition-relative-time");
+        relativeTimeSpan.getElement().setAttribute("title", TIME_FORMATTER.format(prop.getCreated()));
+
         var mentions = prop.getMentions();
         if (!mentions.isEmpty()) {
-            var entitiesLayout = new HorizontalLayout();
+            entitiesLayout = new HorizontalLayout();
             entitiesLayout.setSpacing(false);
             entitiesLayout.addClassName("proposition-entities");
 
-            for (var mention : mentions) {
-                entitiesLayout.add(createMentionBadge(mention));
+            // Cap visible pills to MAX_VISIBLE_PILLS; render "+N" chip for the rest
+            int visibleCount = Math.min(mentions.size(), MAX_VISIBLE_PILLS);
+            for (int i = 0; i < visibleCount; i++) {
+                entitiesLayout.add(createMentionBadge(mentions.get(i)));
             }
-            add(headerLayout, metaLayout, entitiesLayout);
+
+            if (mentions.size() > MAX_VISIBLE_PILLS) {
+                int overflowCount = mentions.size() - MAX_VISIBLE_PILLS;
+                var overflowChip = new Button("+" + overflowCount + " more");
+                overflowChip.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+                overflowChip.addClassName("proposition-pill-overflow");
+                overflowChip.addClickListener(e -> showAllPills(mentions));
+                entitiesLayout.add(overflowChip);
+            }
+
+            add(headerLayout, metaLayout, entitiesLayout, relativeTimeSpan);
         } else {
-            add(headerLayout, metaLayout);
+            add(headerLayout, metaLayout, relativeTimeSpan);
         }
     }
 
@@ -384,6 +433,26 @@ public class PropositionCard extends Div {
         dialog.open();
     }
 
+    private void showAllPills(java.util.List<EntityMention> mentions) {
+        var dialog = new Dialog();
+        dialog.setHeaderTitle("All Entity References");
+        dialog.setWidth("400px");
+        Shortcuts.addShortcutListener(dialog, dialog::close, Key.ESCAPE);
+
+        var content = new VerticalLayout();
+        content.setPadding(false);
+        content.setSpacing(true);
+        content.addClassName("all-pills-dialog-content");
+
+        for (var mention : mentions) {
+            content.add(createMentionBadge(mention));
+        }
+
+        dialog.add(content);
+        dialog.getFooter().add(new Button("Close", e -> dialog.close()));
+        dialog.open();
+    }
+
     // Package-visible (not private) only so tests can drive the real dialog-opening path
     // directly, the same way clicking a mention badge does, without needing a browser to
     // fire the DOM click event.
@@ -465,5 +534,59 @@ public class PropositionCard extends Div {
             remove(editContainer);
             headerLayout.setVisible(true);
         });
+    }
+
+    private void injectCardStyles() {
+        // Each card carries its own <style> virtual child, the same pattern PropositionsPanel
+        // uses on itself. We used to gate this behind a static "only the first card in the JVM
+        // needs it" flag, sharing one style element across every card — but that element lives
+        // on whichever card happened to be first, so removing that one card (refresh, undo,
+        // filter) took the styling for every other card down with it. A per-instance style tag
+        // costs a few hundred bytes of virtual DOM per card, which is nothing next to a card
+        // silently going unstyled.
+        String css = """
+                .proposition-card-full-width {
+                  width: 100%;
+                  padding: var(--lumo-space-s);
+                  display: flex;
+                  flex-direction: column;
+                  gap: var(--lumo-space-xs);
+                }
+
+                .proposition-card-full-width .proposition-text {
+                  display: -webkit-box;
+                  -webkit-line-clamp: 2;
+                  -webkit-box-orient: vertical;
+                  overflow: hidden;
+                  word-break: break-word;
+                }
+
+                .proposition-card-full-width .proposition-header {
+                  flex-wrap: wrap;
+                  align-items: flex-start;
+                }
+
+                .proposition-card-full-width .proposition-meta {
+                  flex-wrap: wrap;
+                  gap: var(--lumo-space-xs);
+                  font-size: var(--lumo-font-size-s);
+                }
+
+                .proposition-card-full-width .proposition-entities {
+                  flex-wrap: wrap;
+                  gap: var(--lumo-space-xs);
+                }
+
+                .proposition-card-full-width .proposition-relative-time {
+                  font-size: var(--lumo-font-size-xs);
+                  color: var(--lumo-secondary-text-color);
+                  text-align: right;
+                  margin-top: var(--lumo-space-xs);
+                }
+                """;
+
+        var styleElement = new com.vaadin.flow.dom.Element("style");
+        styleElement.setText(css);
+        getElement().appendVirtualChild(styleElement);
     }
 }

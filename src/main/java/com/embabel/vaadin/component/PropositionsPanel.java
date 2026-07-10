@@ -252,10 +252,7 @@ public class PropositionsPanel extends VerticalLayout {
             barFill.getElement().getStyle().set("width", scorePct + "%");
             relBar.add(barFill);
 
-            var scoreDisplay = new Span(String.format("%.2f", score));
-            scoreDisplay.addClassName("relevance-score");
-
-            metaRow.add(relBar, scoreDisplay);
+            metaRow.add(relBar);
             cardContainer.add(metaRow);
 
             // Add dedup badge if this survivor collapsed other results (positioned absolutely via CSS)
@@ -280,11 +277,14 @@ public class PropositionsPanel extends VerticalLayout {
         String css = """
             .scored-card-wrapper {
               position: relative;
+              width: 100%;
               border: 1px solid var(--lumo-contrast-20pct);
               border-radius: var(--lumo-border-radius-m);
               background: var(--lumo-base-color);
-              padding: 10px 11px;
-              margin-bottom: 8px;
+              padding: var(--lumo-space-s);
+              margin-bottom: var(--lumo-space-xs);
+              display: flex;
+              flex-direction: column;
             }
 
             .scored-card-wrapper .proposition-card {
@@ -292,6 +292,7 @@ public class PropositionsPanel extends VerticalLayout {
               border: none;
               padding: 0;
               margin-bottom: 0;
+              width: 100%;
             }
 
             .scored-card-wrapper .proposition-card:hover {
@@ -305,8 +306,8 @@ public class PropositionsPanel extends VerticalLayout {
             .scored-meta-row {
               display: flex;
               align-items: center;
-              gap: 8px;
-              margin-top: 7px;
+              gap: var(--lumo-space-xs);
+              margin-top: var(--lumo-space-xs);
             }
 
             .relevance-bar {
@@ -322,14 +323,6 @@ public class PropositionsPanel extends VerticalLayout {
               height: 100%;
               background: var(--lumo-primary-color);
               border-radius: 3px;
-            }
-
-            .relevance-score {
-              font-size: 10.5px;
-              color: var(--lumo-secondary-text-color);
-              font-variant-numeric: tabular-nums;
-              width: 30px;
-              text-align: right;
             }
 
             .dedup-collapsed-badge {
