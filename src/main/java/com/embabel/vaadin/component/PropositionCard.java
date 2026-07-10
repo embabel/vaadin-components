@@ -62,6 +62,8 @@ public class PropositionCard extends Div {
     private Predicate<String> openable;
     private Span relativeTimeSpan;
     private HorizontalLayout entitiesLayout;
+    private Span textSpan;
+    private HorizontalLayout headerLayout;
 
     private static final int MAX_VISIBLE_PILLS = 4;
 
@@ -119,12 +121,12 @@ public class PropositionCard extends Div {
         // Inject CSS for card styling if not already done
         injectCardStyles();
 
-        var headerLayout = new HorizontalLayout();
+        headerLayout = new HorizontalLayout();
         headerLayout.setWidthFull();
         headerLayout.setSpacing(true);
         headerLayout.addClassName("proposition-header");
 
-        var textSpan = new Span(prop.getText());
+        textSpan = new Span(prop.getText());
         textSpan.addClassName("proposition-text");
 
         editButton = new Button(VaadinIcon.EDIT.create());
@@ -492,6 +494,14 @@ public class PropositionCard extends Div {
 
     public Proposition getProposition() {
         return proposition;
+    }
+
+    /**
+     * Programmatically open the inline editor for this card's memory text.
+     * Displays the edit area and Save/Cancel buttons, the same as clicking the edit pencil icon.
+     */
+    public void openEditor() {
+        startEditing(textSpan, headerLayout);
     }
 
     private void startEditing(Span textSpan, HorizontalLayout headerLayout) {
