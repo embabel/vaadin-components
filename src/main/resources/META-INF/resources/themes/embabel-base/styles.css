@@ -1487,6 +1487,30 @@ vaadin-login-form-wrapper::part(form-title) {
   color: var(--sb-text-muted);
 }
 
+.popover .p-search {
+  display: flex;
+  align-items: center;
+  gap: var(--lumo-space-xs);
+  border: 1px solid var(--sb-border);
+  border-radius: var(--lumo-border-radius-m);
+  padding: 0 4px;
+  margin-bottom: 4px;
+}
+
+.popover .p-search .p-search-input {
+  width: 100%;
+}
+
+.popover .target.target-entity .t-kind,
+.popover .target.target-entity {
+  --entity-green: #1c9a6c;
+}
+
+.popover .target-entity .t-kind {
+  background: rgba(28, 154, 108, 0.15);
+  color: var(--entity-green, #1c9a6c);
+}
+
 .popover .target {
   display: flex;
   align-items: center;
