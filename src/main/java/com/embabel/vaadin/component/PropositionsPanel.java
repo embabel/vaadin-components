@@ -22,11 +22,21 @@ import com.embabel.dice.proposition.Proposition;
 import com.embabel.dice.proposition.PropositionQuery;
 import com.embabel.dice.proposition.PropositionRepository;
 import com.embabel.dice.proposition.PropositionStatus;
+import com.embabel.vaadin.component.MemoryClusters.AddEdgeRequest;
+import com.embabel.vaadin.component.MemoryClusters.ClusterKind;
+import com.embabel.vaadin.component.MemoryClusters.ClusterMemberView;
+import com.embabel.vaadin.component.MemoryClusters.ClusteredMemories;
+import com.embabel.vaadin.component.MemoryClusters.EdgeKind;
+import com.embabel.vaadin.component.MemoryClusters.EdgeProvenance;
+import com.embabel.vaadin.component.MemoryClusters.MemoryClusterView;
+import com.embabel.vaadin.component.MemoryClusters.RemoveEdgeRequest;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.HasComponents;
+import com.vaadin.flow.component.HasStyle;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -103,6 +113,12 @@ public class PropositionsPanel extends VerticalLayout {
     private Set<PropositionStatus> statusFilter = MemoryView.ACTIVE.statuses;
     private Supplier<List<SimilarityResult<Proposition>>> scoredResultsSupplier;
     private boolean scoredMode = false;
+    private Supplier<ClusteredMemories> clustersProvider;
+    private Consumer<AddEdgeRequest> onAddEdge;
+    private Consumer<RemoveEdgeRequest> onRemoveEdge;
+    private Consumer<String> onDissolveCluster;
+    private Consumer<String> onSweepCluster;
+    private Consumer<String> onMergeCluster;
 
     /**
      * Convenience constructor for callers that don't explain collapses.
@@ -300,11 +316,22 @@ public class PropositionsPanel extends VerticalLayout {
             var wrapper = card.getParent()
                     .filter(p -> p.hasClassName("scored-card-wrapper"))
                     .orElse(null);
-            var clusterContainer = card.getParent()
-                    .filter(p -> p.hasClassName("cluster-container"))
+            // A provider-driven rail wraps each card in a .member div; dim rather than hide so
+            // the edge rail connectors stay visually coherent across the whole cluster.
+            var member = card.getParent()
+                    .filter(p -> p.hasClassName("member"))
                     .orElse(null);
+            var clusterContainer = findAncestorWithClass(card, "cluster-container");
             if (wrapper != null) {
                 wrapper.setVisible(hit);
+            } else if (member != null) {
+                if (member instanceof HasStyle stylable) {
+                    stylable.setClassName("dim", !hit);
+                }
+                card.setVisible(true);
+                if (clusterContainer != null) {
+                    clusterHits.merge(clusterContainer, hit, Boolean::logicalOr);
+                }
             } else if (clusterContainer != null) {
                 card.setVisible(hit);
                 clusterHits.merge(clusterContainer, hit, Boolean::logicalOr);
@@ -575,6 +602,10 @@ public class PropositionsPanel extends VerticalLayout {
     }
 
     private void refreshClustered() {
+        if (clustersProvider != null) {
+            refreshProviderClustered();
+            return;
+        }
         // One query scopes both the clustering and the unclustered list.
         var query = memoryQuery();
         List<Cluster<Proposition>> clusters = propositionRepository.findClusters(0.7, 10, query);
@@ -671,6 +702,303 @@ public class PropositionsPanel extends VerticalLayout {
             }
             propositionsContent.add(sectionLayout);
         }
+    }
+
+    /**
+     * Provider-driven Clusters mode: renders exactly what the host hands over via
+     * {@link #setClustersProvider(Supplier)} — an edge rail per cluster (node dots + connectors
+     * carrying provenance and an edge tag), and a "Link…" affordance on every unclustered card.
+     * No similarity numbers anywhere; provenance is shown as Auto/Manual only.
+     */
+    private void refreshProviderClustered() {
+        var snapshot = clustersProvider.get();
+        var clusters = snapshot == null ? List.<MemoryClusterView>of() : snapshot.clusters();
+        var unclustered = snapshot == null ? List.<Proposition>of() : snapshot.unclustered();
+
+        int totalCount = unclustered.size() + clusters.stream().mapToInt(c -> c.members().size()).sum();
+        propositionCountSpan.setText("(" + totalCount + " memories, " + clusters.size() + " clusters)");
+
+        if (totalCount == 0) {
+            var emptyMessage = new Span("No memories yet. Start a conversation and analyze it to build memories.");
+            emptyMessage.addClassName("panel-empty-message");
+            propositionsContent.add(emptyMessage);
+            return;
+        }
+
+        for (var cluster : clusters) {
+            propositionsContent.add(buildClusterContainer(cluster));
+        }
+
+        if (!unclustered.isEmpty()) {
+            propositionsContent.add(buildUnclusteredSection(unclustered, snapshot));
+        }
+
+        if (!clusters.isEmpty() || !unclustered.isEmpty()) {
+            propositionsContent.add(buildLegend());
+        }
+    }
+
+    private Div buildClusterContainer(MemoryClusterView cluster) {
+        var container = new Div();
+        container.addClassName("cluster-container");
+
+        var header = new HorizontalLayout();
+        header.setAlignItems(Alignment.CENTER);
+        header.setSpacing(true);
+        header.addClassName("cluster-head");
+
+        var kindChip = new Span(cluster.kind() == ClusterKind.MANUAL ? "Manual" : "Auto");
+        kindChip.addClassName("cluster-kind-chip");
+        if (cluster.kind() == ClusterKind.MANUAL) {
+            kindChip.addClassName("manual");
+        }
+
+        var title = new Span(cluster.title());
+        title.addClassName("cluster-head-label");
+
+        var grow = new Span();
+        grow.addClassName("cluster-head-grow");
+
+        var mergeLink = new Button("Merge cluster…");
+        mergeLink.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE, ButtonVariant.LUMO_SMALL);
+        mergeLink.addClassName("cluster-merge-link");
+        mergeLink.addClickListener(e -> {
+            if (onMergeCluster != null) {
+                onMergeCluster.accept(cluster.id());
+            }
+        });
+
+        header.add(kindChip, title, grow, mergeLink);
+        header.setFlexGrow(1, grow);
+
+        var rail = new Div();
+        rail.addClassName("rail");
+        for (var member : cluster.members()) {
+            rail.add(buildMember(member, cluster.id()));
+        }
+
+        var foot = new Div();
+        foot.addClassName("cluster-foot");
+        var sweepLink = new Button("Sweep this cluster");
+        sweepLink.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE, ButtonVariant.LUMO_SMALL);
+        sweepLink.addClassName("cluster-sweep-link");
+        sweepLink.addClickListener(e -> {
+            if (onSweepCluster != null) {
+                onSweepCluster.accept(cluster.id());
+            }
+        });
+        var dissolveLink = new Button("Dissolve cluster");
+        dissolveLink.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE, ButtonVariant.LUMO_SMALL);
+        dissolveLink.addClassName("cluster-dissolve-link");
+        dissolveLink.addClickListener(e -> {
+            var dialog = new ConfirmDialog();
+            dialog.setHeader("Dissolve cluster");
+            dialog.setText("Remove all edges in \"" + cluster.title() + "\"? This can't be undone.");
+            dialog.setCancelable(true);
+            dialog.setConfirmText("Dissolve");
+            dialog.setConfirmButtonTheme("error primary");
+            dialog.addConfirmListener(ev -> {
+                if (onDissolveCluster != null) {
+                    onDissolveCluster.accept(cluster.id());
+                }
+            });
+            dialog.open();
+        });
+        foot.add(sweepLink, dissolveLink);
+
+        container.add(header, rail, foot);
+        return container;
+    }
+
+    private Div buildMember(ClusterMemberView member, String clusterId) {
+        var wrapper = new Div();
+        wrapper.addClassName("member");
+        if (member.provenance() == EdgeProvenance.MANUAL) {
+            wrapper.addClassName("manual-edge");
+        }
+
+        if (member.edgeTag() != null && !member.edgeTag().isBlank()) {
+            var tag = new Span(member.edgeTag());
+            tag.addClassName("edge-tag");
+            wrapper.add(tag);
+        }
+
+        var card = createCard(member.proposition());
+        wrapper.add(card);
+
+        var actions = new Div();
+        actions.addClassName("edge-actions");
+        var unlink = new Button(VaadinIcon.CLOSE_SMALL.create());
+        unlink.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ICON);
+        unlink.addClassName("icon-btn");
+        unlink.addClassName("unlink");
+        unlink.getElement().setAttribute("aria-label", "Remove from cluster");
+        unlink.getElement().setAttribute("title", "Remove from cluster");
+        unlink.addClickListener(e -> {
+            if (onRemoveEdge != null) {
+                onRemoveEdge.accept(new RemoveEdgeRequest(member.proposition().getId(), clusterId));
+            }
+        });
+        actions.add(unlink);
+        wrapper.add(actions);
+
+        return wrapper;
+    }
+
+    private Div buildUnclusteredSection(List<Proposition> unclustered, ClusteredMemories snapshot) {
+        var section = new Div();
+        section.addClassName("unclustered-section");
+
+        var label = new Span("Unclustered — " + unclustered.size()
+                + (unclustered.size() == 1 ? " memory" : " memories"));
+        label.addClassName("section-label");
+        section.add(label);
+
+        var list = new Div();
+        list.addClassName("unclustered");
+        for (var prop : unclustered) {
+            var cardWrapper = new Div();
+            cardWrapper.addClassName("unclustered-member");
+            var card = createCard(prop);
+            cardWrapper.add(card);
+            addLinkAffordance(cardWrapper, card, prop, snapshot);
+            list.add(cardWrapper);
+        }
+        section.add(list);
+        return section;
+    }
+
+    /**
+     * Finds the card's meta row (same technique {@link #wireUndoMergeLink} uses to reach into a
+     * PropositionCard) and adds a "Link…" pill that opens the link popover for this memory.
+     */
+    private void addLinkAffordance(Div cardWrapper, PropositionCard card, Proposition prop, ClusteredMemories snapshot) {
+        var metaRow = allComponents(card).stream()
+                .filter(c -> c.hasClassName("proposition-meta"))
+                .findFirst()
+                .orElse(null);
+        if (!(metaRow instanceof HasComponents metaContainer)) {
+            return;
+        }
+        var linkButton = new Button("Link…", VaadinIcon.CONNECT.create());
+        linkButton.addClassName("link-btn");
+        linkButton.getElement().setAttribute("aria-label", "Link this memory to another memory or cluster");
+        var popoverHolder = new Div();
+        popoverHolder.addClassName("popover-holder");
+        cardWrapper.add(popoverHolder);
+        linkButton.addClickListener(e -> {
+            popoverHolder.removeAll();
+            popoverHolder.add(buildLinkPopover(popoverHolder, prop, snapshot));
+        });
+        metaContainer.add(linkButton);
+    }
+
+    private Div buildLinkPopover(Div holder, Proposition source, ClusteredMemories snapshot) {
+        var popover = new Div();
+        popover.addClassName("popover");
+
+        var label = new Span("Link this memory to…");
+        label.addClassName("p-label");
+        popover.add(label);
+
+        var selected = new Object[]{null, null}; // [0] = clusterId, [1] = propositionId
+        var relation = new EdgeKind[]{EdgeKind.DUPLICATE_OF};
+        var targetRows = new java.util.ArrayList<Button>();
+
+        for (var cluster : snapshot.clusters()) {
+            var row = buildTargetRow("Cluster", cluster.title() + " (" + cluster.members().size() + " memories)");
+            row.addClickListener(ev -> {
+                selected[0] = cluster.id();
+                selected[1] = null;
+                targetRows.forEach(r -> r.removeClassName("sel"));
+                row.addClassName("sel");
+            });
+            targetRows.add(row);
+            popover.add(row);
+        }
+        for (var candidate : snapshot.unclustered()) {
+            if (candidate.getId().equals(source.getId())) {
+                continue;
+            }
+            var row = buildTargetRow("Memory", candidate.getText());
+            row.addClickListener(ev -> {
+                selected[0] = null;
+                selected[1] = candidate.getId();
+                targetRows.forEach(r -> r.removeClassName("sel"));
+                row.addClassName("sel");
+            });
+            targetRows.add(row);
+            popover.add(row);
+        }
+
+        var relationLabel = new Span("Relation");
+        relationLabel.addClassName("p-label");
+        popover.add(relationLabel);
+
+        var relRow = new Div();
+        relRow.addClassName("rel-row");
+        var dupOf = new Button("Duplicate of");
+        dupOf.addClassName("rel");
+        dupOf.addClassName("sel");
+        var relatedTo = new Button("Related to");
+        relatedTo.addClassName("rel");
+        dupOf.addClickListener(ev -> {
+            relation[0] = EdgeKind.DUPLICATE_OF;
+            dupOf.addClassName("sel");
+            relatedTo.removeClassName("sel");
+        });
+        relatedTo.addClickListener(ev -> {
+            relation[0] = EdgeKind.RELATED_TO;
+            relatedTo.addClassName("sel");
+            dupOf.removeClassName("sel");
+        });
+        relRow.add(dupOf, relatedTo);
+        popover.add(relRow);
+
+        var actions = new Div();
+        actions.addClassName("p-actions");
+        var cancel = new Button("Cancel");
+        cancel.addClassName("btn");
+        cancel.addClickListener(ev -> holder.removeAll());
+        var addEdge = new Button("Add edge");
+        addEdge.addClassName("btn");
+        addEdge.addClassName("primary");
+        addEdge.addClickListener(ev -> {
+            if (selected[0] == null && selected[1] == null) {
+                return;
+            }
+            if (onAddEdge != null) {
+                onAddEdge.accept(new AddEdgeRequest(source.getId(), (String) selected[0], (String) selected[1],
+                        relation[0]));
+            }
+            holder.removeAll();
+        });
+        actions.add(cancel, addEdge);
+        popover.add(actions);
+
+        return popover;
+    }
+
+    private static Button buildTargetRow(String kind, String text) {
+        var row = new Button("[" + kind + "] " + text);
+        row.addClassName("target");
+        row.addClassName("target-" + kind.toLowerCase());
+        row.getElement().setAttribute("data-kind", kind);
+        row.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        return row;
+    }
+
+    private Div buildLegend() {
+        var legend = new Div();
+        legend.addClassName("legend");
+        var auto = new Span("Auto edge (similarity sweep)");
+        auto.addClassName("legend-item");
+        auto.addClassName("auto");
+        var manual = new Span("Manual edge (user-added)");
+        manual.addClassName("legend-item");
+        manual.addClassName("manual");
+        legend.add(auto, manual);
+        return legend;
     }
 
     private PropositionCard createCard(Proposition prop) {
@@ -864,6 +1192,64 @@ public class PropositionsPanel extends VerticalLayout {
         this.scoredResultsSupplier = supplier;
     }
 
+    /**
+     * Hand over a pre-computed clustering for Clusters mode. When set, clustered mode renders
+     * exactly what the supplier returns (edge rail, provenance, "Link…" affordances) instead of
+     * the panel's internal similarity-based clustering. Pass null to restore internal behavior.
+     *
+     * @param clustersProvider supplies the current clusters + unclustered memories, or null
+     */
+    public void setClustersProvider(Supplier<ClusteredMemories> clustersProvider) {
+        this.clustersProvider = clustersProvider;
+    }
+
+    /**
+     * Set the handler invoked when a user completes the "Link…" popover, asking the host to
+     * create a manual edge from one memory to a chosen cluster or memory.
+     *
+     * @param onAddEdge callback receiving the completed request, or null to disable the affordance's effect
+     */
+    public void setOnAddEdge(Consumer<AddEdgeRequest> onAddEdge) {
+        this.onAddEdge = onAddEdge;
+    }
+
+    /**
+     * Set the handler invoked when a user removes a single member's edge from a cluster via the
+     * per-member unlink icon.
+     *
+     * @param onRemoveEdge callback receiving the removed member and its cluster, or null to disable
+     */
+    public void setOnRemoveEdge(Consumer<RemoveEdgeRequest> onRemoveEdge) {
+        this.onRemoveEdge = onRemoveEdge;
+    }
+
+    /**
+     * Set the handler invoked, after user confirmation, when "Dissolve cluster" is clicked.
+     *
+     * @param onDissolveCluster callback receiving the cluster id, or null to disable the action
+     */
+    public void setOnDissolveCluster(Consumer<String> onDissolveCluster) {
+        this.onDissolveCluster = onDissolveCluster;
+    }
+
+    /**
+     * Set the handler invoked when "Sweep this cluster" is clicked.
+     *
+     * @param onSweepCluster callback receiving the cluster id, or null to disable the action
+     */
+    public void setOnSweepCluster(Consumer<String> onSweepCluster) {
+        this.onSweepCluster = onSweepCluster;
+    }
+
+    /**
+     * Set the handler invoked when "Merge cluster…" is clicked.
+     *
+     * @param onMergeCluster callback receiving the cluster id, or null to disable the action
+     */
+    public void setOnMergeCluster(Consumer<String> onMergeCluster) {
+        this.onMergeCluster = onMergeCluster;
+    }
+
     public void scheduleRefresh(com.vaadin.flow.component.UI ui, long delayMs) {
         new Thread(() -> {
             try {
@@ -909,5 +1295,18 @@ public class PropositionsPanel extends VerticalLayout {
     private static void collect(Component c, java.util.List<Component> out) {
         out.add(c);
         c.getChildren().forEach(child -> collect(child, out));
+    }
+
+    /** Walks up the component tree from {@code start} looking for the nearest ancestor with {@code className}. */
+    private static Component findAncestorWithClass(Component start, String className) {
+        var current = start.getParent();
+        while (current.isPresent()) {
+            var c = current.get();
+            if (c.hasClassName(className)) {
+                return c;
+            }
+            current = c.getParent();
+        }
+        return null;
     }
 }
