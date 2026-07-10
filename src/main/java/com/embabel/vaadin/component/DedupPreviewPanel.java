@@ -58,6 +58,9 @@ public class DedupPreviewPanel extends VerticalLayout {
     // survivorId -> loser ids currently checked for that cluster (unchecking excludes a loser
     // from the merge; a cluster with no entry here defaults to "everything checked").
     private final Map<String, Set<String>> clusterSelections = new HashMap<>();
+    // proposed survivorId -> the id the user has chosen as the actual survivor (defaults to the
+    // proposed survivorId itself until the user picks a different row).
+    private final Map<String, String> clusterSurvivorChoice = new HashMap<>();
 
     private Runnable onApply;
     private Consumer<ClusterApplyRequest> onApplyCluster;
@@ -202,6 +205,7 @@ public class DedupPreviewPanel extends VerticalLayout {
         this.current = preview;
         this.appliedClusterIds.clear();
         this.clusterSelections.clear();
+        this.clusterSurvivorChoice.clear();
         this.openPopover = null;
         clustersLayout.removeAll();
         nonMergesLayout.removeAll();
@@ -317,13 +321,41 @@ public class DedupPreviewPanel extends VerticalLayout {
         applyBtn.setEnabled(checkedCount > 0);
     }
 
-    private ClusterApplyRequest buildApplyRequest(DedupPreview.Cluster cluster) {
+    /**
+     * The id of the row the user has chosen as the merge target for this cluster — the sweep's
+     * proposed survivor until the user picks a different row.
+     */
+    private String effectiveSurvivorId(DedupPreview.Cluster cluster) {
+        return clusterSurvivorChoice.getOrDefault(cluster.survivorId(), cluster.survivorId());
+    }
+
+    /**
+     * Switches the chosen survivor for a cluster: the old survivor becomes an ordinary, checked
+     * merge row, and the new survivor loses whatever checked/unchecked state it had as a loser.
+     */
+    private void chooseSurvivor(DedupPreview.Cluster cluster, String newSurvivorId) {
+        var oldSurvivorId = effectiveSurvivorId(cluster);
+        if (oldSurvivorId.equals(newSurvivorId)) {
+            return;
+        }
+        clusterSurvivorChoice.put(cluster.survivorId(), newSurvivorId);
         var checked = checkedLoserIds(cluster);
-        var selected = cluster.losers().stream()
-                .map(DedupPreview.Member::id)
+        checked.remove(newSurvivorId);
+        checked.add(oldSurvivorId);
+        refreshClusters();
+    }
+
+    private ClusterApplyRequest buildApplyRequest(DedupPreview.Cluster cluster) {
+        var effectiveSurvivor = effectiveSurvivorId(cluster);
+        var checked = checkedLoserIds(cluster);
+        var allMemberIds = new java.util.ArrayList<String>();
+        allMemberIds.add(cluster.survivorId());
+        cluster.losers().forEach(l -> allMemberIds.add(l.id()));
+        var selected = allMemberIds.stream()
+                .filter(id -> !id.equals(effectiveSurvivor))
                 .filter(checked::contains)
                 .toList();
-        return new ClusterApplyRequest(cluster.survivorId(), selected);
+        return new ClusterApplyRequest(effectiveSurvivor, selected);
     }
 
     private void refreshClusters() {
@@ -501,10 +533,12 @@ public class DedupPreviewPanel extends VerticalLayout {
 
         boolean isApplied = appliedClusterIds.contains(cluster.survivorId());
 
-        // Survivor row: derive confidence from survivor edge if available
-        var survivorConfidence = deriveSurvivorConfidence(cluster);
-        var survivorRow = renderMemberRow(cluster.survivorId(), cluster.survivorText(), survivorConfidence, true, cluster, isApplied);
-        body.add(survivorRow);
+        if (isApplied) {
+            // Survivor row: derive confidence from survivor edge if available
+            var survivorConfidence = deriveSurvivorConfidence(cluster);
+            var survivorRow = renderMemberRow(cluster.survivorId(), cluster.survivorText(), survivorConfidence, true, cluster, true);
+            body.add(survivorRow);
+        }
 
         // Action buttons — built before the loser rows so each loser's checkbox can update the
         // apply button's label/enabled state as the user (un)checks it.
@@ -529,39 +563,79 @@ public class DedupPreviewPanel extends VerticalLayout {
                 }
             });
 
-            // Loser rows — each carries a checkbox, checked by default (the survivor never gets
-            // one; it's always the merge target). Unchecking dims the row via CSS and updates
-            // the apply button's label/enabled state to reflect the current selection.
-            for (var loser : cluster.losers()) {
-                var loserEdge = cluster.edges().stream()
-                        .filter(e -> e.anchorId().equals(loser.id()) || e.memberId().equals(loser.id()))
-                        .findFirst();
-                var confidence = loserEdge.map(DedupPreview.Edge::aggregateScore).orElse(0.0);
-                var checked = checkedLoserIds(cluster);
-                var loserRow = renderMemberRow(loser.id(), loser.text(), confidence, false, cluster, isApplied);
-                loserRow.addClassName("dedup-member-row-mergeable");
-                if (!checked.contains(loser.id())) {
-                    loserRow.addClassName("dedup-member-row-unpicked");
+            // Every row — the currently chosen survivor and every merge row — carries a "pick
+            // survivor" radio, defaulting to the sweep's proposed survivor. Selecting another
+            // row moves the SURVIVOR badge/highlight to it, and the old survivor becomes an
+            // ordinary, checked merge row (see chooseSurvivor). The row list stays in a fixed
+            // order (proposed survivor first, then losers) — only which row plays the survivor
+            // changes.
+            var effectiveSurvivor = effectiveSurvivorId(cluster);
+            var checked = checkedLoserIds(cluster);
+
+            var rowIds = new java.util.ArrayList<String>();
+            rowIds.add(cluster.survivorId());
+            cluster.losers().forEach(l -> rowIds.add(l.id()));
+
+            for (var rowId : rowIds) {
+                boolean rowIsSurvivor = rowId.equals(effectiveSurvivor);
+                String text;
+                double confidence;
+                if (rowId.equals(cluster.survivorId())) {
+                    text = cluster.survivorText();
+                    confidence = deriveSurvivorConfidence(cluster);
+                } else {
+                    var member = cluster.losers().stream().filter(l -> l.id().equals(rowId)).findFirst().orElseThrow();
+                    var edge = cluster.edges().stream()
+                            .filter(e -> e.anchorId().equals(rowId) || e.memberId().equals(rowId))
+                            .findFirst();
+                    text = member.text();
+                    confidence = edge.map(DedupPreview.Edge::aggregateScore).orElse(0.0);
                 }
 
-                var pick = new Checkbox();
-                pick.addClassName("dedup-pick");
-                pick.setValue(checked.contains(loser.id()));
-                pick.getElement().setAttribute("title", "Include this proposition in the merge");
-                pick.addValueChangeListener(ev -> {
-                    var selection = checkedLoserIds(cluster);
-                    if (Boolean.TRUE.equals(ev.getValue())) {
-                        selection.add(loser.id());
-                        loserRow.removeClassName("dedup-member-row-unpicked");
-                    } else {
-                        selection.remove(loser.id());
-                        loserRow.addClassName("dedup-member-row-unpicked");
-                    }
-                    updateClusterApplyButton(applyBtn, cluster);
-                });
-                loserRow.getElement().insertChild(0, pick.getElement());
+                var row = renderMemberRow(rowId, text, confidence, rowIsSurvivor, cluster, false);
 
-                body.add(loserRow);
+                var survivorRadio = new Checkbox();
+                survivorRadio.addClassName("dedup-pick-survivor");
+                survivorRadio.setValue(rowIsSurvivor);
+                survivorRadio.getElement().setAttribute("title", rowIsSurvivor
+                        ? "Survivor — the memory the others merge into"
+                        : "Make this the survivor");
+                survivorRadio.addValueChangeListener(ev -> {
+                    if (Boolean.TRUE.equals(ev.getValue())) {
+                        chooseSurvivor(cluster, rowId);
+                    } else {
+                        // A radio can't be unchecked by itself — there's always exactly one
+                        // survivor.
+                        survivorRadio.setValue(true);
+                    }
+                });
+                row.getElement().insertChild(0, survivorRadio.getElement());
+
+                if (!rowIsSurvivor) {
+                    row.addClassName("dedup-member-row-mergeable");
+                    if (!checked.contains(rowId)) {
+                        row.addClassName("dedup-member-row-unpicked");
+                    }
+
+                    var pick = new Checkbox();
+                    pick.addClassName("dedup-pick");
+                    pick.setValue(checked.contains(rowId));
+                    pick.getElement().setAttribute("title", "Include this proposition in the merge");
+                    pick.addValueChangeListener(ev -> {
+                        var selection = checkedLoserIds(cluster);
+                        if (Boolean.TRUE.equals(ev.getValue())) {
+                            selection.add(rowId);
+                            row.removeClassName("dedup-member-row-unpicked");
+                        } else {
+                            selection.remove(rowId);
+                            row.addClassName("dedup-member-row-unpicked");
+                        }
+                        updateClusterApplyButton(applyBtn, cluster);
+                    });
+                    row.getElement().insertChild(1, pick.getElement());
+                }
+
+                body.add(row);
             }
 
             var skipBtn = new Button("Skip");
