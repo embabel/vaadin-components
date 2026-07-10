@@ -378,6 +378,17 @@ public class MemorySection extends VerticalLayout {
     }
 
     /**
+     * Show the results bar with the given text as-is — no "Semantic results for" wrapper.
+     * For answer-style results (question answering) where the text is a sentence.
+     *
+     * @param text the literal bar text, or null to hide the bar
+     * @param onClear invoked when the bar's Clear link is clicked, after the bar is hidden
+     */
+    public void setSearchResultsBarText(String text, Runnable onClear) {
+        propositionsPanel.setSearchResultsBarText(text, onClear);
+    }
+
+    /**
      * Display search results with relevance scores — the L2 semantic-search results path.
      * Delegates to the panel; see {@link PropositionsPanel#showScoredPropositions(List)}.
      */

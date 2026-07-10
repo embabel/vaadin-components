@@ -200,7 +200,7 @@ public class PropositionsPanel extends VerticalLayout {
         // query to the host for semantic search (setOnSearchSubmit); Esc clears the field and
         // the instant filter. The "?" chip opens a popover documenting the search operators.
         searchField = new TextField();
-        searchField.setPlaceholder("Search memories... try entity:Priya or ask a question");
+        searchField.setPlaceholder("Search memories... filter, entity:\"...\", or ask a question");
         searchField.setValueChangeMode(ValueChangeMode.EAGER);
         searchField.setPrefixComponent(VaadinIcon.SEARCH.create());
         searchField.setClearButtonVisible(true);
@@ -264,6 +264,10 @@ public class PropositionsPanel extends VerticalLayout {
         searchResultsBar.setAlignItems(Alignment.CENTER);
         searchResultsBar.setSpacing(true);
         searchResultsBar.addClassName("search-results-bar");
+        // Full width with a growing label so the theme CSS can truncate long text instead of
+        // letting it push the Clear button out of a narrow host's viewport.
+        searchResultsBar.setWidthFull();
+        searchResultsBar.setFlexGrow(1, searchResultsBarLabel);
         searchResultsBar.setVisible(false);
         searchResultsBarClear.addClickListener(e -> {
             searchResultsBar.setVisible(false);
@@ -422,6 +426,24 @@ public class PropositionsPanel extends VerticalLayout {
             return;
         }
         searchResultsBarLabel.setText("Semantic results for \"" + label + "\"");
+        searchResultsBar.setVisible(true);
+    }
+
+    /**
+     * Show the results bar with the given text as-is — no "Semantic results for" wrapper.
+     * Used for answer-style results (question answering) where the text is a sentence,
+     * not an echoed query.
+     *
+     * @param text the literal bar text, or null to hide the bar
+     * @param onClear invoked when the bar's Clear link is clicked, after the bar is hidden
+     */
+    public void setSearchResultsBarText(String text, Runnable onClear) {
+        this.searchResultsBarOnClear = onClear;
+        if (text == null) {
+            searchResultsBar.setVisible(false);
+            return;
+        }
+        searchResultsBarLabel.setText(text);
         searchResultsBar.setVisible(true);
     }
 
@@ -1265,6 +1287,11 @@ public class PropositionsPanel extends VerticalLayout {
     public void setContextId(String contextId) {
         this.contextId = contextId;
         this.scoredMode = false;
+        // Leaving scored mode: bring back the header controls showScoredPropositions hid.
+        // (A host whose normal state IS scored — the side panel — re-hides them on its next
+        // refresh when the supplier re-enters scored mode.)
+        statusSelect.setVisible(true);
+        clusterToggle.setVisible(true);
     }
 
     public void setScoredResultsSupplier(Supplier<List<SimilarityResult<Proposition>>> supplier) {

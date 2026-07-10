@@ -29,6 +29,7 @@ import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.KeyDownEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.ComponentUtil;
+import com.vaadin.flow.component.HasStyle;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -104,7 +105,7 @@ class MemoriesPageConformanceTest {
 
         var searchField = findSearchField(panel);
         assertNotNull(searchField, "header must carry a search field");
-        assertEquals("Search memories... try entity:Priya or ask a question", searchField.getPlaceholder());
+        assertEquals("Search memories... filter, entity:\"...\", or ask a question", searchField.getPlaceholder());
 
         assertEquals("(2 memories)", countText(panel));
 
@@ -192,6 +193,37 @@ class MemoriesPageConformanceTest {
         assertEquals("hiking", captured.get(), "Enter must hand the raw query to the host callback");
     }
 
+    @Test
+    void leavingScoredModeRestoresStatusFilterAndClusterToggle() {
+        var panel = new PropositionsPanel(repoWith(List.of()), entityResolver);
+        panel.setContextId(CTX);
+        panel.refresh();
+
+        var statusBefore = findByClass(panel, "status-filter");
+        var toggleBefore = findByClass(panel, "cluster-toggle");
+        assertTrue(statusBefore.isVisible(), "status filter starts visible");
+        assertTrue(toggleBefore.isVisible(), "cluster toggle starts visible");
+
+        panel.showScoredPropositions(List.of());
+        assertFalse(findByClass(panel, "status-filter").isVisible(), "scored mode hides the status filter");
+        assertFalse(findByClass(panel, "cluster-toggle").isVisible(), "scored mode hides the cluster toggle");
+
+        // The Clear path: host resets context then refreshes.
+        panel.setContextId(CTX);
+        panel.refresh();
+        assertTrue(findByClass(panel, "status-filter").isVisible(),
+                "leaving scored mode must restore the status filter");
+        assertTrue(findByClass(panel, "cluster-toggle").isVisible(),
+                "leaving scored mode must restore the cluster toggle");
+    }
+
+    private Component findByClass(Component root, String className) {
+        return allComponents(root).stream()
+                .filter(c -> c instanceof HasStyle hs && hs.getClassNames().contains(className))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("expected a component with class " + className));
+    }
+
     // --- results bar shows and clears -------------------------------------------------------
 
     @Test
@@ -224,6 +256,29 @@ class MemoriesPageConformanceTest {
 
         assertFalse(findResultsBar(panel).isVisible(), "results bar must hide on Clear");
         assertTrue(cleared.get(), "Clear must invoke the host's onClear callback");
+    }
+
+    @Test
+    void resultsBarTextVariantShowsLiteralTextWithoutSemanticWrapper() {
+        var panel = new PropositionsPanel(repoWith(List.of()), entityResolver);
+        panel.setContextId(CTX);
+        panel.refresh();
+
+        panel.setSearchResultsBarText("Ben's favorite range is the Rockies.", () -> { });
+
+        var bar = findResultsBar(panel);
+        assertTrue(bar.isVisible(), "results bar must show for literal answer text");
+        var label = allComponents(bar).stream()
+                .filter(c -> c instanceof Span)
+                .map(c -> ((Span) c).getText())
+                .filter(t -> t != null && t.contains("Rockies"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("expected the answer text on the bar"));
+        assertFalse(label.contains("Semantic results for"),
+                "literal text variant must not wrap the answer in the semantic-results phrasing");
+
+        panel.setSearchResultsBarText(null, null);
+        assertFalse(findResultsBar(panel).isVisible(), "null text must hide the bar");
     }
 
     // --- operator popover --------------------------------------------------------------------

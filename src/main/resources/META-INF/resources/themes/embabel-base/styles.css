@@ -1351,9 +1351,12 @@ vaadin-login-form-wrapper::part(form-title) {
 }
 
 .edge-tag {
+  /* A tag labels its member's INCOMING edge, so it sits on the connector ABOVE the member.
+     The first member has no incoming edge (null tag from the host), which also means a tag
+     can never float into the cluster footer. */
   position: absolute;
   left: -15px;
-  bottom: -15px;
+  top: -13px;
   transform: translateX(-50%);
   font-size: 8px;
   font-weight: 600;
@@ -1694,5 +1697,23 @@ vaadin-dialog-overlay.content-fit-dialog::part(content) {
 
 .dedup-member-row-unpicked {
   opacity: 0.45;
+/* Search-results bar: in narrow hosts (the memory side panel) a long label must not push
+   the Clear button off-screen — the label truncates, Clear always stays reachable. */
+.search-results-bar {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.search-results-bar .search-results-bar-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-results-bar .search-results-bar-clear {
+  flex-shrink: 0;
 }
 
