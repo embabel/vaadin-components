@@ -410,6 +410,44 @@ class ClustersViewTest {
     }
 
     @Test
+    void switchingFromEntityTargetBackToClusterTargetRestoresRelationRow() {
+        var panel = newPanel();
+        panel.setClustersProvider(this::twoClusterSnapshot);
+        panel.setLinkTargetSearch(q -> List.of(
+                new MemoryClusters.LinkTarget(MemoryClusters.LinkTargetKind.ENTITY, "ent-1", "Hiking"),
+                new MemoryClusters.LinkTarget(MemoryClusters.LinkTargetKind.CLUSTER, "c1", "Cluster one")));
+        toggleClusters(panel);
+
+        var linkButton = allComponents(panel).stream()
+                .filter(c -> c instanceof Button && c.hasClassName("link-btn"))
+                .map(c -> (Button) c)
+                .findFirst()
+                .orElseThrow();
+        click(linkButton);
+
+        var entityTarget = allComponents(panel).stream()
+                .filter(c -> c instanceof Button && c.hasClassName("target-entity"))
+                .map(c -> (Button) c)
+                .findFirst()
+                .orElseThrow();
+        click(entityTarget);
+
+        assertFalse(allComponents(panel).stream()
+                        .anyMatch(c -> c.hasClassName("rel-row") && c.isVisible()),
+                "relation row should be hidden once an entity target is selected");
+
+        var clusterTarget = allComponents(panel).stream()
+                .filter(c -> c instanceof Button && c.hasClassName("target-cluster"))
+                .map(c -> (Button) c)
+                .findFirst()
+                .orElseThrow();
+        click(clusterTarget);
+
+        assertTrue(allComponents(panel).stream().anyMatch(c -> c.hasClassName("rel-row") && c.isVisible()),
+                "relation row should reappear once a cluster target is selected after an entity target");
+    }
+
+    @Test
     void memoryAndClusterPathsUnaffectedByEntitySeams() {
         var panel = newPanel();
         panel.setClustersProvider(this::twoClusterSnapshot);

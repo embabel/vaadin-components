@@ -1045,7 +1045,15 @@ public class PropositionsPanel extends VerticalLayout {
 
     private static Button buildTargetRow(LinkTarget target) {
         var kindText = kindLabel(target.kind());
-        var row = new Button("[" + kindText + "] " + target.label());
+        var kindChip = new Span(kindText);
+        kindChip.addClassName("t-kind");
+        if (target.kind() == LinkTargetKind.ENTITY) {
+            kindChip.addClassName("ent");
+        }
+        var labelSpan = new Span(target.label());
+        labelSpan.addClassName("t-txt");
+        var row = new Button();
+        row.getElement().appendChild(kindChip.getElement(), labelSpan.getElement());
         row.addClassName("target");
         row.addClassName("target-" + kindText.toLowerCase());
         row.getElement().setAttribute("data-kind", kindText);
