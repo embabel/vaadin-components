@@ -1697,6 +1697,25 @@ vaadin-dialog-overlay.content-fit-dialog::part(content) {
 
 .dedup-member-row-unpicked {
   opacity: 0.45;
+}
+
+/* Survivor choice: one radio-styled checkbox per cluster row (f1-preview-behaviors) — exactly
+   one is checked at a time (see DedupPreviewPanel#chooseSurvivor), and the SURVIVOR badge
+   follows whichever row it's on. Styled green to match the survivor highlight. */
+.dedup-pick-survivor {
+  flex-shrink: 0;
+  margin-right: var(--lumo-space-xs);
+}
+
+.dedup-pick-survivor::part(checkbox) {
+  border-radius: 50%;
+}
+
+.dedup-pick-survivor[checked]::part(checkbox) {
+  background-color: var(--lumo-success-color);
+  border-color: var(--lumo-success-color);
+}
+
 /* Search-results bar: in narrow hosts (the memory side panel) a long label must not push
    the Clear button off-screen — the label truncates, Clear always stays reachable. */
 .search-results-bar {
