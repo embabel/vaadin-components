@@ -305,4 +305,34 @@ public class MemorySection extends VerticalLayout {
     public boolean openEditor(String propositionId) {
         return propositionsPanel.openEditor(propositionId);
     }
+
+    /**
+     * Set the handler invoked with the raw search text when Enter is pressed in the header
+     * search field. This vaadin component stays dumb: it fires the raw query, and the host
+     * runs semantic search / question-answering / operator parsing and pushes results back
+     * through {@link #showScoredPropositions(List)}, then {@link #setSearchResultsBar(String, Runnable)}.
+     *
+     * @param onSearchSubmit callback receiving the raw query text, or null to disable submit
+     */
+    public void setOnSearchSubmit(Consumer<String> onSearchSubmit) {
+        propositionsPanel.setOnSearchSubmit(onSearchSubmit);
+    }
+
+    /**
+     * Show or hide the slim "Semantic results for '&lt;label&gt;' — Clear" bar above the list.
+     *
+     * @param label the submitted query text to display, or null to hide the bar
+     * @param onClear invoked when the bar's Clear link is clicked, after the bar is hidden
+     */
+    public void setSearchResultsBar(String label, Runnable onClear) {
+        propositionsPanel.setSearchResultsBar(label, onClear);
+    }
+
+    /**
+     * Display search results with relevance scores — the L2 semantic-search results path.
+     * Delegates to the panel; see {@link PropositionsPanel#showScoredPropositions(List)}.
+     */
+    public void showScoredPropositions(List<com.embabel.common.core.types.SimilarityResult<Proposition>> results) {
+        propositionsPanel.showScoredPropositions(results);
+    }
 }
