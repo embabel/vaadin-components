@@ -22,6 +22,7 @@ import com.embabel.dice.proposition.Proposition;
 import com.embabel.dice.proposition.PropositionQuery;
 import com.embabel.dice.proposition.PropositionRepository;
 import com.embabel.dice.proposition.PropositionStatus;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.details.Details;
@@ -679,5 +680,41 @@ public class PropositionsPanel extends VerticalLayout {
                 Thread.currentThread().interrupt();
             }
         }).start();
+    }
+
+    /**
+     * Open the inline editor for a memory card by its proposition ID.
+     * Walks the rendered cards to find one matching the given ID and opens its editor.
+     *
+     * @param propositionId the ID of the proposition to edit
+     * @return true if a card with the given ID was found and editor opened, false otherwise
+     */
+    public boolean openEditor(String propositionId) {
+        var card = findCardByPropositionId(propositionId);
+        if (card.isPresent()) {
+            card.get().openEditor();
+            return true;
+        }
+        return false;
+    }
+
+    private java.util.Optional<PropositionCard> findCardByPropositionId(String propositionId) {
+        // Walk all children of propositionsContent (flat, clustered, or scored mode) to find matching card
+        return allComponents(propositionsContent).stream()
+                .filter(c -> c instanceof PropositionCard)
+                .map(c -> (PropositionCard) c)
+                .filter(card -> card.getProposition().getId().equals(propositionId))
+                .findFirst();
+    }
+
+    private static java.util.List<Component> allComponents(Component root) {
+        var out = new java.util.ArrayList<Component>();
+        collect(root, out);
+        return out;
+    }
+
+    private static void collect(Component c, java.util.List<Component> out) {
+        out.add(c);
+        c.getChildren().forEach(child -> collect(child, out));
     }
 }

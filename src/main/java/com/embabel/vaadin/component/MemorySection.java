@@ -295,4 +295,14 @@ public class MemorySection extends VerticalLayout {
     public void setOpenable(Predicate<String> openable) {
         propositionsPanel.setOpenable(openable);
     }
+
+    /**
+     * Programmatically open the inline editor for a memory card by its proposition ID.
+     *
+     * @param propositionId the ID of the proposition to edit
+     * @return true if a card with the given ID was found and editor opened, false otherwise
+     */
+    public boolean openEditor(String propositionId) {
+        return propositionsPanel.openEditor(propositionId);
+    }
 }
