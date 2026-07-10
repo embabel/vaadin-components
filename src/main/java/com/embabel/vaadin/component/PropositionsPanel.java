@@ -22,23 +22,30 @@ import com.embabel.dice.proposition.Proposition;
 import com.embabel.dice.proposition.PropositionQuery;
 import com.embabel.dice.proposition.PropositionRepository;
 import com.embabel.dice.proposition.PropositionStatus;
+import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.HasComponents;
+import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.popover.Popover;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.select.SelectVariant;
+import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.data.value.ValueChangeMode;
 
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.dom.Element;
 
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -76,12 +83,18 @@ public class PropositionsPanel extends VerticalLayout {
     private final Span propositionCountSpan;
     private final Select<MemoryView> statusSelect;
     private final Button clusterToggle;
+    private final TextField searchField;
+    private final HorizontalLayout searchResultsBar;
+    private final Span searchResultsBarLabel;
+    private Consumer<String> onSearchSubmit;
+    private Runnable searchResultsBarOnClear;
     private Consumer<String> onDelete;
     private Consumer<Proposition> onEdit;
     private LineageProvider lineageProvider;
     private Function<String, List<Proposition>> relatedPropositionsLoader;
     private Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader;
     private BiConsumer<String, String> onUndoMember;
+    private BiConsumer<String, String> onAfterUndo;
     private Consumer<String> onOpenRef;
     private Predicate<String> openable;
     private String contextId;
@@ -160,8 +173,74 @@ public class PropositionsPanel extends VerticalLayout {
         refreshButton.getElement().setAttribute("title", "Refresh memories");
         refreshButton.addClickListener(e -> refresh());
 
-        headerLayout.add(titleSpan, propositionCountSpan, statusSelect, clusterToggle, refreshButton);
+        // Search field: L1 instant client-side filter on every keystroke; Enter hands the raw
+        // query to the host for semantic search (setOnSearchSubmit); Esc clears the field and
+        // the instant filter. The "?" chip opens a popover documenting the search operators.
+        searchField = new TextField();
+        searchField.setPlaceholder("Search memories... try entity:Priya or ask a question");
+        searchField.setValueChangeMode(ValueChangeMode.EAGER);
+        searchField.setPrefixComponent(VaadinIcon.SEARCH.create());
+        searchField.setClearButtonVisible(true);
+        searchField.addClassName("memory-search-field");
+        searchField.addValueChangeListener(e -> applyInstantFilter(e.getValue()));
+        searchField.addKeyDownListener(Key.ENTER, e -> {
+            if (onSearchSubmit != null) {
+                onSearchSubmit.accept(searchField.getValue());
+            }
+        });
+        searchField.addKeyDownListener(Key.ESCAPE, e -> {
+            searchField.setValue("");
+            applyInstantFilter("");
+        });
+
+        var infoChip = new Button("?");
+        infoChip.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ICON);
+        infoChip.addClassName("search-info-chip");
+        infoChip.getElement().setAttribute("title", "Search help");
+
+        var searchHelpPopover = new Popover();
+        searchHelpPopover.setTarget(infoChip);
+        searchHelpPopover.addClassName("search-help-popover");
+        var helpContent = new VerticalLayout();
+        helpContent.setPadding(false);
+        helpContent.setSpacing(false);
+        helpContent.addClassName("search-help-content");
+        helpContent.add(
+                searchOperatorRow("entity:<name>", "filter by entity (typeahead)"),
+                searchOperatorRow("status:active|stale|all", "lifecycle filter"),
+                searchOperatorRow("conf:>0.8 / conf:<0.5", "confidence band"),
+                searchOperatorRow("merged:yes|no", "only merged / no merged cards"));
+        var helpNote = new Span("Type to filter instantly. Press Enter for semantic search. Esc clears.");
+        helpNote.addClassName("search-help-note");
+        helpContent.add(helpNote);
+        searchHelpPopover.add(helpContent);
+
+        var searchWrap = new HorizontalLayout(searchField, infoChip, searchHelpPopover);
+        searchWrap.setAlignItems(Alignment.CENTER);
+        searchWrap.setSpacing(true);
+        searchWrap.addClassName("search-wrap");
+
+        headerLayout.add(titleSpan, propositionCountSpan, searchWrap, statusSelect, clusterToggle, refreshButton);
         headerLayout.setFlexGrow(1, titleSpan);
+
+        // L2 semantic-results bar: slim, shown above the list when the host reports results
+        // for a submitted query (setSearchResultsBar); hidden until then and on clear.
+        searchResultsBarLabel = new Span();
+        searchResultsBarLabel.addClassName("search-results-bar-label");
+        var searchResultsBarClear = new Button("Clear");
+        searchResultsBarClear.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+        searchResultsBarClear.addClassName("search-results-bar-clear");
+        searchResultsBar = new HorizontalLayout(searchResultsBarLabel, searchResultsBarClear);
+        searchResultsBar.setAlignItems(Alignment.CENTER);
+        searchResultsBar.setSpacing(true);
+        searchResultsBar.addClassName("search-results-bar");
+        searchResultsBar.setVisible(false);
+        searchResultsBarClear.addClickListener(e -> {
+            searchResultsBar.setVisible(false);
+            if (searchResultsBarOnClear != null) {
+                searchResultsBarOnClear.run();
+            }
+        });
 
         propositionsContent = new VerticalLayout();
         propositionsContent.setPadding(false);
@@ -173,8 +252,90 @@ public class PropositionsPanel extends VerticalLayout {
         contentScroller.setSizeFull();
         contentScroller.addClassName("panel-scroller");
 
-        add(headerLayout, contentScroller);
+        add(headerLayout, searchResultsBar, contentScroller);
         setFlexGrow(1, contentScroller);
+    }
+
+    private Div searchOperatorRow(String operator, String description) {
+        var row = new Div();
+        row.addClassName("search-op-row");
+        var op = new Span(operator);
+        op.addClassName("search-op-name");
+        var desc = new Span(description);
+        desc.addClassName("search-op-desc");
+        row.add(op, desc);
+        return row;
+    }
+
+    /**
+     * L1 instant filter: hides cards whose memory text and entity names don't contain the
+     * query (case-insensitive), and updates the visible count. Blank query shows everything.
+     */
+    private void applyInstantFilter(String query) {
+        var q = query == null ? "" : query.trim().toLowerCase();
+        var cards = allComponents(propositionsContent).stream()
+                .filter(c -> c instanceof PropositionCard)
+                .map(c -> (PropositionCard) c)
+                .toList();
+        int shown = 0;
+        for (var card : cards) {
+            boolean hit = q.isEmpty() || matchesQuery(card.getProposition(), q);
+            card.setVisible(hit);
+            if (hit) {
+                shown++;
+            }
+        }
+        propositionCountSpan.setText("(" + shown + (shown == 1 ? " memory)" : " memories)"));
+    }
+
+    private boolean matchesQuery(Proposition prop, String lowerCaseQuery) {
+        if (prop.getText() != null && prop.getText().toLowerCase().contains(lowerCaseQuery)) {
+            return true;
+        }
+        for (var mention : prop.getMentions()) {
+            var name = resolvedEntityName(mention);
+            if (name != null && name.toLowerCase().contains(lowerCaseQuery)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String resolvedEntityName(com.embabel.dice.proposition.EntityMention mention) {
+        if (mention.getResolvedId() != null && entityResolver != null) {
+            var resolved = entityResolver.apply(mention.getResolvedId());
+            if (resolved != null) {
+                return resolved.getName();
+            }
+        }
+        return mention.getSpan();
+    }
+
+    /**
+     * Set the handler invoked with the raw search text when Enter is pressed in the search field.
+     * The host runs semantic search / operator parsing and pushes results back through
+     * {@link #showScoredPropositions(List)}, then calls {@link #setSearchResultsBar(String, Runnable)}.
+     *
+     * @param onSearchSubmit callback receiving the raw query text, or null to disable submit
+     */
+    public void setOnSearchSubmit(Consumer<String> onSearchSubmit) {
+        this.onSearchSubmit = onSearchSubmit;
+    }
+
+    /**
+     * Show or hide the slim "Semantic results for '&lt;label&gt;' — Clear" bar above the list.
+     *
+     * @param label the submitted query text to display, or null to hide the bar
+     * @param onClear invoked when the bar's Clear link is clicked, after the bar is hidden
+     */
+    public void setSearchResultsBar(String label, Runnable onClear) {
+        this.searchResultsBarOnClear = onClear;
+        if (label == null) {
+            searchResultsBar.setVisible(false);
+            return;
+        }
+        searchResultsBarLabel.setText("Semantic results for \"" + label + "\"");
+        searchResultsBar.setVisible(true);
     }
 
     public void refresh() {
@@ -251,10 +412,7 @@ public class PropositionsPanel extends VerticalLayout {
             barFill.getElement().getStyle().set("width", scorePct + "%");
             relBar.add(barFill);
 
-            var scoreDisplay = new Span(String.format("%.2f", score));
-            scoreDisplay.addClassName("relevance-score");
-
-            metaRow.add(relBar, scoreDisplay);
+            metaRow.add(relBar);
             cardContainer.add(metaRow);
 
             // Add dedup badge if this survivor collapsed other results (positioned absolutely via CSS)
@@ -279,11 +437,14 @@ public class PropositionsPanel extends VerticalLayout {
         String css = """
             .scored-card-wrapper {
               position: relative;
+              width: 100%;
               border: 1px solid var(--lumo-contrast-20pct);
               border-radius: var(--lumo-border-radius-m);
               background: var(--lumo-base-color);
-              padding: 10px 11px;
-              margin-bottom: 8px;
+              padding: var(--lumo-space-s);
+              margin-bottom: var(--lumo-space-xs);
+              display: flex;
+              flex-direction: column;
             }
 
             .scored-card-wrapper .proposition-card {
@@ -291,6 +452,7 @@ public class PropositionsPanel extends VerticalLayout {
               border: none;
               padding: 0;
               margin-bottom: 0;
+              width: 100%;
             }
 
             .scored-card-wrapper .proposition-card:hover {
@@ -304,8 +466,8 @@ public class PropositionsPanel extends VerticalLayout {
             .scored-meta-row {
               display: flex;
               align-items: center;
-              gap: 8px;
-              margin-top: 7px;
+              gap: var(--lumo-space-xs);
+              margin-top: var(--lumo-space-xs);
             }
 
             .relevance-bar {
@@ -321,14 +483,6 @@ public class PropositionsPanel extends VerticalLayout {
               height: 100%;
               background: var(--lumo-primary-color);
               border-radius: 3px;
-            }
-
-            .relevance-score {
-              font-size: 10.5px;
-              color: var(--lumo-secondary-text-color);
-              font-variant-numeric: tabular-nums;
-              width: 30px;
-              text-align: right;
             }
 
             .dedup-collapsed-badge {
@@ -438,89 +592,46 @@ public class PropositionsPanel extends VerticalLayout {
             return;
         }
 
-        // Render each cluster as a collapsible Details component
-        for (int i = 0; i < clusters.size(); i++) {
-            var cluster = clusters.get(i);
+        // Render each cluster as a light, always-open container per the approved design: a
+        // slim header ("Cluster: N similar memories" + shared entity chips) holding the member
+        // cards uniformly — no anchor/similar distinction, no per-card score badges.
+        for (var cluster : clusters) {
             var anchor = cluster.getAnchor();
             List<SimilarityResult<Proposition>> similar = cluster.getSimilar();
             int clusterSize = similar.size() + 1;
 
-            // Summary: cluster icon + anchor text + count badge
-            var summaryLayout = new HorizontalLayout();
-            summaryLayout.setAlignItems(Alignment.CENTER);
-            summaryLayout.setSpacing(true);
-            summaryLayout.addClassName("cluster-summary");
+            var members = new java.util.ArrayList<Proposition>();
+            members.add(anchor);
+            similar.forEach(sim -> members.add(sim.getMatch()));
 
-            var clusterIcon = new Span();
-            clusterIcon.addClassName("cluster-icon");
+            var header = new HorizontalLayout();
+            header.setAlignItems(Alignment.CENTER);
+            header.setSpacing(true);
+            header.addClassName("cluster-head");
 
-            var anchorText = new Span(truncate(anchor.getText(), 70));
-            anchorText.addClassName("cluster-anchor-text");
+            var clusterIcon = VaadinIcon.CLUSTER.create();
+            clusterIcon.addClassName("cluster-head-icon");
 
-            var countBadge = new Span(clusterSize + " memories");
-            countBadge.addClassName("cluster-count");
+            var headerLabel = new Span("Cluster: " + clusterSize + " similar memories");
+            headerLabel.addClassName("cluster-head-label");
 
-            summaryLayout.add(clusterIcon, anchorText, countBadge);
-
-            // Content: anchor card (labeled) + similar cards with scored badges
-            var content = new VerticalLayout();
-            content.setPadding(false);
-            content.setSpacing(false);
-            content.addClassName("cluster-content");
-
-            // Anchor card with label
-            var anchorWrapper = new VerticalLayout();
-            anchorWrapper.setPadding(false);
-            anchorWrapper.setSpacing(false);
-            anchorWrapper.addClassName("cluster-anchor-wrapper");
-            var anchorLabel = new Span("Anchor");
-            anchorLabel.addClassName("cluster-item-label");
-            anchorLabel.addClassName("anchor-label");
-            anchorWrapper.add(anchorLabel, createCard(anchor));
-            content.add(anchorWrapper);
-
-            // Similar cards with similarity score to the right
-            for (var sim : similar) {
-                var simWrapper = new HorizontalLayout();
-                simWrapper.setWidthFull();
-                simWrapper.setAlignItems(Alignment.CENTER);
-                simWrapper.setPadding(false);
-                simWrapper.setSpacing(false);
-                simWrapper.addClassName("cluster-similar-wrapper");
-
-                var card = createCard(sim.getMatch());
-
-                var scorePct = (int) Math.round(sim.getScore() * 100);
-                var scoreIndicator = new VerticalLayout();
-                scoreIndicator.setPadding(false);
-                scoreIndicator.setSpacing(false);
-                scoreIndicator.setAlignItems(Alignment.CENTER);
-                scoreIndicator.addClassName("similarity-indicator");
-
-                var scoreBadge = new Span(scorePct + "%");
-                scoreBadge.addClassName("similarity-badge");
-                if (scorePct >= 90) {
-                    scoreBadge.addClassName("score-high");
-                } else if (scorePct >= 80) {
-                    scoreBadge.addClassName("score-medium");
-                } else {
-                    scoreBadge.addClassName("score-low");
-                }
-
-                var scoreBar = new Span();
-                scoreBar.addClassName("similarity-bar");
-                scoreBar.getElement().getStyle().set("--score-width", scorePct + "%");
-
-                scoreIndicator.add(scoreBadge, scoreBar);
-                simWrapper.add(card, scoreIndicator);
-                simWrapper.setFlexGrow(1, card);
-                content.add(simWrapper);
+            header.add(clusterIcon, headerLabel);
+            for (var name : sharedEntityNames(members)) {
+                var chip = new Span(name);
+                chip.addClassName("cluster-head-chip");
+                header.add(chip);
             }
 
-            var details = new Details(summaryLayout, content);
-            details.addClassName("cluster-details");
-            details.addClassName("cluster-index-" + (i % 4));
-            propositionsContent.add(details);
+            var container = new VerticalLayout();
+            container.setPadding(true);
+            container.setSpacing(true);
+            container.addClassName("cluster-container");
+            container.add(header);
+            for (var member : members) {
+                container.add(createCard(member));
+            }
+
+            propositionsContent.add(container);
         }
 
         // Unclustered propositions
@@ -561,6 +672,9 @@ public class PropositionsPanel extends VerticalLayout {
         if (onUndoMember != null) {
             card.setOnUndoMember(onUndoMember);
         }
+        if (onAfterUndo != null) {
+            card.setOnAfterUndo(onAfterUndo);
+        }
         if (onOpenRef != null) {
             card.setOnOpenRef(onOpenRef);
         }
@@ -576,12 +690,80 @@ public class PropositionsPanel extends VerticalLayout {
         if (onEdit != null) {
             card.setOnEdit(onEdit);
         }
+        wireUndoMergeLink(card, prop);
         return card;
     }
 
-    private static String truncate(String text, int maxLen) {
-        if (text == null) return "";
-        return text.length() <= maxLen ? text : text.substring(0, maxLen) + "...";
+    /**
+     * Adds a visible "Undo merge" link right after the "Merged N duplicates" badge on a merged
+     * card, per the approved design (always visible, not hover-only). PropositionCard itself
+     * owns that badge and isn't touched here — we find it in the rendered tree and add a sibling
+     * into its parent layout, then wire it to fire the same (survivorId, retiredId) callbacks
+     * the existing lineage-dialog undo path uses, once per retired member.
+     */
+    private void wireUndoMergeLink(PropositionCard card, Proposition prop) {
+        if (collapseExplanationProvider == null) {
+            return;
+        }
+        collapseExplanationProvider.explain(prop.getId())
+                .filter(explanation -> !explanation.retired().isEmpty())
+                .ifPresent(explanation -> {
+                    var badge = findCollapseBadge(card);
+                    if (badge == null) {
+                        return;
+                    }
+                    var parent = badge.getParent().orElse(null);
+                    if (!(parent instanceof HasComponents container)) {
+                        return;
+                    }
+                    var undoLink = new Button("Undo merge", VaadinIcon.ARROW_BACKWARD.create());
+                    undoLink.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+                    undoLink.addClassName("undo-merge-link");
+                    undoLink.getElement().setAttribute("title",
+                            "Restore the " + explanation.retired().size() + " collapsed duplicate memories");
+                    undoLink.addClickListener(e -> {
+                        var survivorId = prop.getId();
+                        for (var member : explanation.retired()) {
+                            if (onUndoMember != null) {
+                                onUndoMember.accept(survivorId, member.propositionId());
+                            }
+                        }
+                        refresh();
+                        if (onAfterUndo != null) {
+                            for (var member : explanation.retired()) {
+                                onAfterUndo.accept(survivorId, member.propositionId());
+                            }
+                        }
+                    });
+                    container.add(undoLink);
+                });
+    }
+
+    private static Button findCollapseBadge(Component root) {
+        return allComponents(root).stream()
+                .filter(c -> c instanceof Button && c.hasClassName("collapse-explanation-badge"))
+                .map(c -> (Button) c)
+                .findFirst()
+                .orElse(null);
+    }
+
+    /** Entity names shared by two or more of the given propositions, in first-seen order, capped at 4. */
+    private List<String> sharedEntityNames(List<Proposition> members) {
+        var counts = new LinkedHashMap<String, Integer>();
+        for (var member : members) {
+            var seenOnThisMember = new HashSet<String>();
+            for (var mention : member.getMentions()) {
+                var name = resolvedEntityName(mention);
+                if (name != null && seenOnThisMember.add(name)) {
+                    counts.merge(name, 1, Integer::sum);
+                }
+            }
+        }
+        return counts.entrySet().stream()
+                .filter(e -> e.getValue() >= 2)
+                .map(Map.Entry::getKey)
+                .limit(4)
+                .toList();
     }
 
     public void setOnDelete(Consumer<String> handler) {
@@ -635,6 +817,17 @@ public class PropositionsPanel extends VerticalLayout {
     }
 
     /**
+     * Set the handler to invoke after an undo completes in the lineage section.
+     * Fired after the proposition has been re-rendered with the new state.
+     *
+     * @param onAfterUndo callback receiving (survivorId, retiredMemberId) after undo lands,
+     *                    or null to disable the callback
+     */
+    public void setOnAfterUndo(BiConsumer<String, String> onAfterUndo) {
+        this.onAfterUndo = onAfterUndo;
+    }
+
+    /**
      * Set the handler to invoke when an Open button is clicked on a grounding/provenance ref in a lineage section.
      *
      * @param onOpenRef callback receiving the ref string when an Open button is clicked,
@@ -671,5 +864,41 @@ public class PropositionsPanel extends VerticalLayout {
                 Thread.currentThread().interrupt();
             }
         }).start();
+    }
+
+    /**
+     * Open the inline editor for a memory card by its proposition ID.
+     * Walks the rendered cards to find one matching the given ID and opens its editor.
+     *
+     * @param propositionId the ID of the proposition to edit
+     * @return true if a card with the given ID was found and editor opened, false otherwise
+     */
+    public boolean openEditor(String propositionId) {
+        var card = findCardByPropositionId(propositionId);
+        if (card.isPresent()) {
+            card.get().openEditor();
+            return true;
+        }
+        return false;
+    }
+
+    private java.util.Optional<PropositionCard> findCardByPropositionId(String propositionId) {
+        // Walk all children of propositionsContent (flat, clustered, or scored mode) to find matching card
+        return allComponents(propositionsContent).stream()
+                .filter(c -> c instanceof PropositionCard)
+                .map(c -> (PropositionCard) c)
+                .filter(card -> card.getProposition().getId().equals(propositionId))
+                .findFirst();
+    }
+
+    private static java.util.List<Component> allComponents(Component root) {
+        var out = new java.util.ArrayList<Component>();
+        collect(root, out);
+        return out;
+    }
+
+    private static void collect(Component c, java.util.List<Component> out) {
+        out.add(c);
+        c.getChildren().forEach(child -> collect(child, out));
     }
 }
