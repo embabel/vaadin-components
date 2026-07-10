@@ -60,6 +60,34 @@ public class PropositionCard extends Div {
     private BiConsumer<String, String> onAfterUndo;
     private Consumer<String> onOpenRef;
     private Predicate<String> openable;
+    private Span relativeTimeSpan;
+
+    /**
+     * Format a creation timestamp as relative time (e.g. "2h ago", "just now").
+     * Returns a short human-readable string showing time elapsed since creation.
+     */
+    public static String formatRelativeTime(java.time.Instant created) {
+        var now = java.time.Instant.now();
+        var durationSeconds = java.time.Duration.between(created, now).getSeconds();
+
+        if (durationSeconds < 60) {
+            return "just now";
+        }
+        var minutes = durationSeconds / 60;
+        if (minutes < 60) {
+            return minutes + "m ago";
+        }
+        var hours = minutes / 60;
+        if (hours < 24) {
+            return hours + "h ago";
+        }
+        var days = hours / 24;
+        if (days < 7) {
+            return days + "d ago";
+        }
+        var weeks = days / 7;
+        return weeks + "w ago";
+    }
 
     /**
      * Convenience constructor for callers that don't explain collapses.
@@ -123,16 +151,18 @@ public class PropositionCard extends Div {
         confidenceSpan.addClassName(confidencePercent >= 80 ? "high" :
                 confidencePercent >= 50 ? "medium" : "low");
 
-        var timeSpan = new Span(TIME_FORMATTER.format(prop.getCreated()));
-        timeSpan.addClassName("proposition-time");
-
-        metaLayout.add(confidenceSpan, timeSpan);
+        metaLayout.add(confidenceSpan);
 
         if (collapseExplanationProvider != null) {
             collapseExplanationProvider.explain(prop.getId())
                     .filter(explanation -> !explanation.retired().isEmpty())
                     .ifPresent(explanation -> metaLayout.add(createCollapseBadge(explanation)));
         }
+
+        // Create relative time span with absolute time as tooltip
+        relativeTimeSpan = new Span(formatRelativeTime(prop.getCreated()));
+        relativeTimeSpan.addClassName("proposition-relative-time");
+        relativeTimeSpan.getElement().setAttribute("title", TIME_FORMATTER.format(prop.getCreated()));
 
         var mentions = prop.getMentions();
         if (!mentions.isEmpty()) {
@@ -143,9 +173,9 @@ public class PropositionCard extends Div {
             for (var mention : mentions) {
                 entitiesLayout.add(createMentionBadge(mention));
             }
-            add(headerLayout, metaLayout, entitiesLayout);
+            add(headerLayout, metaLayout, entitiesLayout, relativeTimeSpan);
         } else {
-            add(headerLayout, metaLayout);
+            add(headerLayout, metaLayout, relativeTimeSpan);
         }
     }
 

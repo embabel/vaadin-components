@@ -251,10 +251,7 @@ public class PropositionsPanel extends VerticalLayout {
             barFill.getElement().getStyle().set("width", scorePct + "%");
             relBar.add(barFill);
 
-            var scoreDisplay = new Span(String.format("%.2f", score));
-            scoreDisplay.addClassName("relevance-score");
-
-            metaRow.add(relBar, scoreDisplay);
+            metaRow.add(relBar);
             cardContainer.add(metaRow);
 
             // Add dedup badge if this survivor collapsed other results (positioned absolutely via CSS)
@@ -321,14 +318,6 @@ public class PropositionsPanel extends VerticalLayout {
               height: 100%;
               background: var(--lumo-primary-color);
               border-radius: 3px;
-            }
-
-            .relevance-score {
-              font-size: 10.5px;
-              color: var(--lumo-secondary-text-color);
-              font-variant-numeric: tabular-nums;
-              width: 30px;
-              text-align: right;
             }
 
             .dedup-collapsed-badge {
