@@ -276,11 +276,14 @@ public class PropositionsPanel extends VerticalLayout {
         String css = """
             .scored-card-wrapper {
               position: relative;
+              width: 100%;
               border: 1px solid var(--lumo-contrast-20pct);
               border-radius: var(--lumo-border-radius-m);
               background: var(--lumo-base-color);
-              padding: 10px 11px;
-              margin-bottom: 8px;
+              padding: var(--lumo-space-s);
+              margin-bottom: var(--lumo-space-xs);
+              display: flex;
+              flex-direction: column;
             }
 
             .scored-card-wrapper .proposition-card {
@@ -288,6 +291,7 @@ public class PropositionsPanel extends VerticalLayout {
               border: none;
               padding: 0;
               margin-bottom: 0;
+              width: 100%;
             }
 
             .scored-card-wrapper .proposition-card:hover {
@@ -301,8 +305,8 @@ public class PropositionsPanel extends VerticalLayout {
             .scored-meta-row {
               display: flex;
               align-items: center;
-              gap: 8px;
-              margin-top: 7px;
+              gap: var(--lumo-space-xs);
+              margin-top: var(--lumo-space-xs);
             }
 
             .relevance-bar {

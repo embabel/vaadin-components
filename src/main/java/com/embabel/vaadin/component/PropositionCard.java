@@ -61,6 +61,9 @@ public class PropositionCard extends Div {
     private Consumer<String> onOpenRef;
     private Predicate<String> openable;
     private Span relativeTimeSpan;
+    private HorizontalLayout entitiesLayout;
+
+    private static final int MAX_VISIBLE_PILLS = 4;
 
     /**
      * Format a creation timestamp as relative time (e.g. "2h ago", "just now").
@@ -111,6 +114,10 @@ public class PropositionCard extends Div {
         this.proposition = prop;
         this.entityResolver = entityResolver;
         addClassName("proposition-card");
+        addClassName("proposition-card-full-width");
+
+        // Inject CSS for card styling if not already done
+        injectCardStyles();
 
         var headerLayout = new HorizontalLayout();
         headerLayout.setWidthFull();
@@ -166,13 +173,25 @@ public class PropositionCard extends Div {
 
         var mentions = prop.getMentions();
         if (!mentions.isEmpty()) {
-            var entitiesLayout = new HorizontalLayout();
+            entitiesLayout = new HorizontalLayout();
             entitiesLayout.setSpacing(false);
             entitiesLayout.addClassName("proposition-entities");
 
-            for (var mention : mentions) {
-                entitiesLayout.add(createMentionBadge(mention));
+            // Cap visible pills to MAX_VISIBLE_PILLS; render "+N" chip for the rest
+            int visibleCount = Math.min(mentions.size(), MAX_VISIBLE_PILLS);
+            for (int i = 0; i < visibleCount; i++) {
+                entitiesLayout.add(createMentionBadge(mentions.get(i)));
             }
+
+            if (mentions.size() > MAX_VISIBLE_PILLS) {
+                int overflowCount = mentions.size() - MAX_VISIBLE_PILLS;
+                var overflowChip = new Button("+" + overflowCount + " more");
+                overflowChip.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+                overflowChip.addClassName("proposition-pill-overflow");
+                overflowChip.addClickListener(e -> showAllPills(mentions));
+                entitiesLayout.add(overflowChip);
+            }
+
             add(headerLayout, metaLayout, entitiesLayout, relativeTimeSpan);
         } else {
             add(headerLayout, metaLayout, relativeTimeSpan);
@@ -414,6 +433,26 @@ public class PropositionCard extends Div {
         dialog.open();
     }
 
+    private void showAllPills(java.util.List<EntityMention> mentions) {
+        var dialog = new Dialog();
+        dialog.setHeaderTitle("All Entity References");
+        dialog.setWidth("400px");
+        Shortcuts.addShortcutListener(dialog, dialog::close, Key.ESCAPE);
+
+        var content = new VerticalLayout();
+        content.setPadding(false);
+        content.setSpacing(true);
+        content.addClassName("all-pills-dialog-content");
+
+        for (var mention : mentions) {
+            content.add(createMentionBadge(mention));
+        }
+
+        dialog.add(content);
+        dialog.getFooter().add(new Button("Close", e -> dialog.close()));
+        dialog.open();
+    }
+
     // Package-visible (not private) only so tests can drive the real dialog-opening path
     // directly, the same way clicking a mention badge does, without needing a browser to
     // fire the DOM click event.
@@ -495,5 +534,64 @@ public class PropositionCard extends Div {
             remove(editContainer);
             headerLayout.setVisible(true);
         });
+    }
+
+    private static volatile boolean stylesInjected = false;
+
+    private void injectCardStyles() {
+        if (stylesInjected) {
+            return;
+        }
+        synchronized (PropositionCard.class) {
+            if (stylesInjected) {
+                return;
+            }
+
+            String css = """
+                .proposition-card-full-width {
+                  width: 100%;
+                  padding: var(--lumo-space-s);
+                  display: flex;
+                  flex-direction: column;
+                  gap: var(--lumo-space-xs);
+                }
+
+                .proposition-card-full-width .proposition-text {
+                  display: -webkit-box;
+                  -webkit-line-clamp: 2;
+                  -webkit-box-orient: vertical;
+                  overflow: hidden;
+                  word-break: break-word;
+                }
+
+                .proposition-card-full-width .proposition-header {
+                  flex-wrap: wrap;
+                  align-items: flex-start;
+                }
+
+                .proposition-card-full-width .proposition-meta {
+                  flex-wrap: wrap;
+                  gap: var(--lumo-space-xs);
+                  font-size: var(--lumo-font-size-s);
+                }
+
+                .proposition-card-full-width .proposition-entities {
+                  flex-wrap: wrap;
+                  gap: var(--lumo-space-xs);
+                }
+
+                .proposition-card-full-width .proposition-relative-time {
+                  font-size: var(--lumo-font-size-xs);
+                  color: var(--lumo-secondary-text-color);
+                  text-align: right;
+                  margin-top: var(--lumo-space-xs);
+                }
+                """;
+
+            var styleElement = new com.vaadin.flow.dom.Element("style");
+            styleElement.setText(css);
+            getElement().appendVirtualChild(styleElement);
+            stylesInjected = true;
+        }
     }
 }

@@ -35,8 +35,8 @@ import static org.mockito.Mockito.*;
  * Test that side-panel memory cards conform to the design spec and user amendments:
  * - no numeric score text in scored mode
  * - timestamp with relative time at bottom-right
- * - entity pills with overflow handling
  * - correct card anatomy order
+ * - full-width tight cards with text clamping
  * - confidence badge unchanged
  */
 class SidePanelCardConformanceTest {
@@ -75,6 +75,32 @@ class SidePanelCardConformanceTest {
 
         var timeElements = findByClassName(card, "proposition-relative-time");
         assertFalse(timeElements.isEmpty(), "Card should have relative-time element");
+    }
+
+    @Test
+    void testCardHasFullWidthStyling() {
+        var prop = prop("p1", "Test", PropositionStatus.ACTIVE);
+        var card = new PropositionCard(prop, entityResolver);
+
+        // Card should have full-width class
+        assertTrue(card.getElement().getClassList().contains("proposition-card-full-width"),
+                   "Card should have proposition-card-full-width class");
+    }
+
+    @Test
+    void testCardTextIsClampedViaClass() {
+        // Create a proposition with very long text
+        var longText = "This is a very long memory text that should be clamped to two lines " +
+                      "and any additional content beyond that should be hidden with an ellipsis " +
+                      "to maintain uniform card heights across the panel";
+        var prop = Proposition.create(
+                "long1", CTX, longText, List.of(), 0.8, 0.0, 0.5, null, List.of(),
+                Instant.now(), Instant.now(), PropositionStatus.ACTIVE);
+        var card = new PropositionCard(prop, entityResolver);
+
+        // Card should have full-width styling which includes text clamping
+        assertTrue(card.getElement().getClassList().contains("proposition-card-full-width"),
+                   "Card with long text should use clamping via proposition-card-full-width class");
     }
 
     @Test
