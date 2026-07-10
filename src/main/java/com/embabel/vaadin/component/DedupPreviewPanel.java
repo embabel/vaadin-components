@@ -15,8 +15,11 @@
  */
 package com.embabel.vaadin.component;
 
+import com.vaadin.flow.component.Key;
+import com.vaadin.flow.component.Shortcuts;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
@@ -25,6 +28,7 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,14 +55,19 @@ public class DedupPreviewPanel extends VerticalLayout {
     private final Span footerLabel = new Span();
     private final Map<Div, Div> memberRowToPopoverMap = new HashMap<>();
     private final Set<String> appliedClusterIds = new HashSet<>();
+    // survivorId -> loser ids currently checked for that cluster (unchecking excludes a loser
+    // from the merge; a cluster with no entry here defaults to "everything checked").
+    private final Map<String, Set<String>> clusterSelections = new HashMap<>();
 
     private Runnable onApply;
+    private Consumer<ClusterApplyRequest> onApplyCluster;
     private Consumer<String> onUndo;
     private Runnable onRescan;
     private DedupPreview current;
     private boolean dryRunMode = true;
     private String runMetaLabel;
     private double matchThreshold = Double.NaN;
+    private Div openPopover;
 
     /**
      * Builds an empty panel. Call {@link #show(DedupPreview)} to populate it with a sweep preview.
@@ -68,6 +77,13 @@ public class DedupPreviewPanel extends VerticalLayout {
         setPadding(true);
         setSpacing(true);
         getStyle().set("padding", "calc(var(--lumo-space-m) * 1.5)");
+
+        // Escape always closes an open signal popover, wherever focus is.
+        Shortcuts.addShortcutListener(this, this::closeOpenPopover, Key.ESCAPE);
+        // Clicking anywhere in the panel that isn't the popover or its trigger closes it.
+        // Popovers and signal buttons stop this event from reaching them (see createPopover /
+        // renderMemberRow), so this only fires for genuine "outside" clicks.
+        getElement().addEventListener("click", e -> closeOpenPopover());
 
         // Toolbar
         toolbarLayout.addClassName("dedup-toolbar");
@@ -110,6 +126,15 @@ public class DedupPreviewPanel extends VerticalLayout {
         applyButton.addClassName("dedup-apply");
         applyButton.getElement().setAttribute("title", "Apply this sweep: retire the duplicates shown, keeping each cluster's survivor");
         applyButton.addClickListener(e -> {
+            // "Apply all" fires a per-cluster request for every cluster with its current
+            // selection, so hosts that migrated to setOnApplyCluster see the same selective
+            // behavior a single cluster's Apply button gives. Hosts still on the old
+            // parameterless onApply keep working unchanged.
+            if (onApplyCluster != null && current != null) {
+                for (var cluster : current.clusters()) {
+                    onApplyCluster.accept(buildApplyRequest(cluster));
+                }
+            }
             if (onApply != null) {
                 onApply.run();
             }
@@ -176,6 +201,8 @@ public class DedupPreviewPanel extends VerticalLayout {
     public void show(DedupPreview preview) {
         this.current = preview;
         this.appliedClusterIds.clear();
+        this.clusterSelections.clear();
+        this.openPopover = null;
         clustersLayout.removeAll();
         nonMergesLayout.removeAll();
         emptyStateDiv.removeAll();
@@ -265,6 +292,40 @@ public class DedupPreviewPanel extends VerticalLayout {
         }
     }
 
+    /**
+     * Closes whichever signal popover is currently open, if any. Called when another popover
+     * opens, on Escape, and on outside clicks — so at most one popover is ever visible.
+     */
+    void closeOpenPopover() {
+        if (openPopover != null) {
+            openPopover.getStyle().set("display", "none");
+            openPopover = null;
+        }
+    }
+
+    private Set<String> checkedLoserIds(DedupPreview.Cluster cluster) {
+        // Default: every loser is checked (whole cluster merges, unchanged from before selective
+        // merge existed). Once the user touches a checkbox, the explicit set takes over.
+        return clusterSelections.computeIfAbsent(cluster.survivorId(),
+                id -> cluster.losers().stream().map(DedupPreview.Member::id)
+                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
+    }
+
+    private void updateClusterApplyButton(Button applyBtn, DedupPreview.Cluster cluster) {
+        int checkedCount = checkedLoserIds(cluster).size();
+        applyBtn.setText("Apply selected (" + checkedCount + ")");
+        applyBtn.setEnabled(checkedCount > 0);
+    }
+
+    private ClusterApplyRequest buildApplyRequest(DedupPreview.Cluster cluster) {
+        var checked = checkedLoserIds(cluster);
+        var selected = cluster.losers().stream()
+                .map(DedupPreview.Member::id)
+                .filter(checked::contains)
+                .toList();
+        return new ClusterApplyRequest(cluster.survivorId(), selected);
+    }
+
     private void refreshClusters() {
         if (current != null) {
             clustersLayout.removeAll();
@@ -314,6 +375,18 @@ public class DedupPreviewPanel extends VerticalLayout {
      */
     public void setOnApply(Runnable handler) {
         this.onApply = handler;
+    }
+
+    /**
+     * Sets the handler invoked when a cluster is applied, either from its own "Apply selected"
+     * button or (once per cluster) from the toolbar's "Apply all". Carries the survivor id and
+     * only the loser ids the user left checked, so a host can merge exactly what was selected
+     * instead of the whole cluster.
+     *
+     * @param handler receives one {@link ClusterApplyRequest} per applied cluster
+     */
+    public void setOnApplyCluster(Consumer<ClusterApplyRequest> handler) {
+        this.onApplyCluster = handler;
     }
 
     /**
@@ -433,17 +506,8 @@ public class DedupPreviewPanel extends VerticalLayout {
         var survivorRow = renderMemberRow(cluster.survivorId(), cluster.survivorText(), survivorConfidence, true, cluster, isApplied);
         body.add(survivorRow);
 
-        // Loser rows
-        for (var loser : cluster.losers()) {
-            var loserEdge = cluster.edges().stream()
-                    .filter(e -> e.anchorId().equals(loser.id()) || e.memberId().equals(loser.id()))
-                    .findFirst();
-            var confidence = loserEdge.map(DedupPreview.Edge::aggregateScore).orElse(0.0);
-            var loserRow = renderMemberRow(loser.id(), loser.text(), confidence, false, cluster, isApplied);
-            body.add(loserRow);
-        }
-
-        // Action buttons
+        // Action buttons — built before the loser rows so each loser's checkbox can update the
+        // apply button's label/enabled state as the user (un)checks it.
         var actions = new Div();
         actions.addClassName("dedup-cluster-actions");
         actions.getStyle().set("display", "flex");
@@ -451,20 +515,71 @@ public class DedupPreviewPanel extends VerticalLayout {
         actions.getStyle().set("padding-top", "4px");
 
         if (!isApplied) {
-            var applyBtn = new Button("Apply cluster");
+            var applyBtn = new Button();
             applyBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
+            applyBtn.addClassName("dedup-cluster-apply");
+            updateClusterApplyButton(applyBtn, cluster);
             applyBtn.addClickListener(e -> {
                 markClusterApplied(cluster.survivorId());
+                if (onApplyCluster != null) {
+                    onApplyCluster.accept(buildApplyRequest(cluster));
+                }
                 if (onApply != null) {
                     onApply.run();
                 }
             });
+
+            // Loser rows — each carries a checkbox, checked by default (the survivor never gets
+            // one; it's always the merge target). Unchecking dims the row via CSS and updates
+            // the apply button's label/enabled state to reflect the current selection.
+            for (var loser : cluster.losers()) {
+                var loserEdge = cluster.edges().stream()
+                        .filter(e -> e.anchorId().equals(loser.id()) || e.memberId().equals(loser.id()))
+                        .findFirst();
+                var confidence = loserEdge.map(DedupPreview.Edge::aggregateScore).orElse(0.0);
+                var checked = checkedLoserIds(cluster);
+                var loserRow = renderMemberRow(loser.id(), loser.text(), confidence, false, cluster, isApplied);
+                loserRow.addClassName("dedup-member-row-mergeable");
+                if (!checked.contains(loser.id())) {
+                    loserRow.addClassName("dedup-member-row-unpicked");
+                }
+
+                var pick = new Checkbox();
+                pick.addClassName("dedup-pick");
+                pick.setValue(checked.contains(loser.id()));
+                pick.getElement().setAttribute("title", "Include this proposition in the merge");
+                pick.addValueChangeListener(ev -> {
+                    var selection = checkedLoserIds(cluster);
+                    if (Boolean.TRUE.equals(ev.getValue())) {
+                        selection.add(loser.id());
+                        loserRow.removeClassName("dedup-member-row-unpicked");
+                    } else {
+                        selection.remove(loser.id());
+                        loserRow.addClassName("dedup-member-row-unpicked");
+                    }
+                    updateClusterApplyButton(applyBtn, cluster);
+                });
+                loserRow.getElement().insertChild(0, pick.getElement());
+
+                body.add(loserRow);
+            }
 
             var skipBtn = new Button("Skip");
             skipBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
 
             actions.add(applyBtn, skipBtn);
         } else {
+            // Applied clusters render plainly: losers are struck through, no checkboxes —
+            // selection only matters before a cluster is applied.
+            for (var loser : cluster.losers()) {
+                var loserEdge = cluster.edges().stream()
+                        .filter(e -> e.anchorId().equals(loser.id()) || e.memberId().equals(loser.id()))
+                        .findFirst();
+                var confidence = loserEdge.map(DedupPreview.Edge::aggregateScore).orElse(0.0);
+                var loserRow = renderMemberRow(loser.id(), loser.text(), confidence, false, cluster, isApplied);
+                body.add(loserRow);
+            }
+
             var appliedBtn = new Button("Applied ✓");
             appliedBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
             appliedBtn.setEnabled(false);
@@ -591,18 +706,28 @@ public class DedupPreviewPanel extends VerticalLayout {
         infoBtn.getStyle().set("font-size", "11px");
         infoBtn.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ICON);
         infoBtn.getElement().setAttribute("title", "View merge signals");
+        // Its own click must not bubble to the panel's outside-click handler, or the popover
+        // this click is about to open would immediately be closed again.
+        infoBtn.getElement().executeJs("this.addEventListener('click', function(e){ e.stopPropagation(); });");
 
         row.add(badge, textSpan, scoreSpan, infoBtn);
 
         // Create popover for signals (hidden by default)
         var popover = createPopover(memberId, cluster);
         popover.getStyle().set("display", "none");
+        // Clicks inside the popover are not "outside" clicks.
+        popover.getElement().executeJs("this.addEventListener('click', function(e){ e.stopPropagation(); });");
         row.add(popover);
 
-        // Toggle popover on button click
+        // Popovers are exclusive: opening this one closes whichever one was open first, and
+        // clicking the same button again just closes it.
         infoBtn.addClickListener(e -> {
-            var display = popover.getStyle().get("display");
-            popover.getStyle().set("display", "none".equals(display) ? "block" : "none");
+            boolean wasOpen = openPopover == popover;
+            closeOpenPopover();
+            if (!wasOpen) {
+                popover.getStyle().set("display", "block");
+                openPopover = popover;
+            }
         });
 
         memberRowToPopoverMap.put(row, popover);
@@ -744,6 +869,16 @@ public class DedupPreviewPanel extends VerticalLayout {
         }
 
         return signalsLayout;
+    }
+
+    /**
+     * A request to apply one cluster's merge, carrying only the loser ids the user left checked —
+     * unchecked losers are excluded from the merge rather than being merged wholesale.
+     *
+     * @param survivorId       id of the proposition the losers merge into
+     * @param selectedLoserIds ids of the checked losers to fold into the survivor
+     */
+    public record ClusterApplyRequest(String survivorId, List<String> selectedLoserIds) {
     }
 
     /**

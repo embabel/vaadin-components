@@ -1659,3 +1659,16 @@ vaadin-dialog-overlay.content-fit-dialog::part(content) {
   width: 100%;
 }
 
+/* ===== Dedup preview: selective merge (f1-preview-behaviors) =====
+   Appended as its own block — DedupPreviewPanel.java owns these classes, kept separate here
+   to avoid merge friction with other in-flight edits to this stylesheet. */
+
+.dedup-pick {
+  flex-shrink: 0;
+  margin-right: var(--lumo-space-xs);
+}
+
+.dedup-member-row-unpicked {
+  opacity: 0.45;
+}
+
