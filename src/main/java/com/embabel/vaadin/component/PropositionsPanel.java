@@ -82,6 +82,7 @@ public class PropositionsPanel extends VerticalLayout {
     private Function<String, List<Proposition>> relatedPropositionsLoader;
     private Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader;
     private BiConsumer<String, String> onUndoMember;
+    private BiConsumer<String, String> onAfterUndo;
     private Consumer<String> onOpenRef;
     private Predicate<String> openable;
     private String contextId;
@@ -561,6 +562,9 @@ public class PropositionsPanel extends VerticalLayout {
         if (onUndoMember != null) {
             card.setOnUndoMember(onUndoMember);
         }
+        if (onAfterUndo != null) {
+            card.setOnAfterUndo(onAfterUndo);
+        }
         if (onOpenRef != null) {
             card.setOnOpenRef(onOpenRef);
         }
@@ -632,6 +636,17 @@ public class PropositionsPanel extends VerticalLayout {
      */
     public void setOnUndoMember(BiConsumer<String, String> onUndoMember) {
         this.onUndoMember = onUndoMember;
+    }
+
+    /**
+     * Set the handler to invoke after an undo completes in the lineage section.
+     * Fired after the proposition has been re-rendered with the new state.
+     *
+     * @param onAfterUndo callback receiving (survivorId, retiredMemberId) after undo lands,
+     *                    or null to disable the callback
+     */
+    public void setOnAfterUndo(BiConsumer<String, String> onAfterUndo) {
+        this.onAfterUndo = onAfterUndo;
     }
 
     /**
