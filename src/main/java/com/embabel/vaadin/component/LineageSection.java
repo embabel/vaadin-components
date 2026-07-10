@@ -562,11 +562,10 @@ public class LineageSection extends VerticalLayout {
                 if (hasDetail && entry.source() != null && !entry.source().isBlank()) {
                     parts.add(entry.source());
                 }
-                if (entry.ref() != null && !entry.ref().isBlank()) {
-                    parts.add(entry.ref());
-                }
+                // The raw locator address (entry.ref) stays tooltip-only — users see the
+                // human source label; the key is for hover/debugging, per the lineage design.
                 var detailSpan = new Span(String.join(" · ", parts));
-                if (entry.ref() != null) {
+                if (entry.ref() != null && !entry.ref().isBlank()) {
                     detailSpan.setTitle(entry.ref());
                 }
                 detail.add(detailSpan);

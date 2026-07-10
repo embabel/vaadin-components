@@ -48,7 +48,9 @@ class LineageSectionTest {
         assertTrue(text.contains("doc-1#p2"), "must show grounding ref — got: " + text);
         assertTrue(text.contains("doc-3#p9"), "must show grounding ref — got: " + text);
         assertTrue(text.contains("email-42"), "must show provenance source — got: " + text);
-        assertTrue(text.contains("2026-01-01T10:00:00Z"), "must show provenance ref — got: " + text);
+        // The raw locator ref is tooltip-only by design (human labels carry the visible text).
+        assertFalse(text.contains("2026-01-01T10:00:00Z"),
+                "raw provenance ref must not render as visible text — got: " + text);
         assertTrue(text.contains("extracted by nlp"), "must show provenance detail — got: " + text);
         assertFalse(text.contains("Collapse history"), "no collapse section when collapse is empty — got: " + text);
     }
