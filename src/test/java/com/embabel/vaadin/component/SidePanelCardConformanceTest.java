@@ -253,7 +253,9 @@ class SidePanelCardConformanceTest {
     }
 
     @Test
-    void testScoredModeHasRelevanceBar() {
+    void testScoredModeHasNoRelevanceBar() {
+        // Final user decision: no relevance bar / progress bar on scored cards at all — the
+        // labeled "NN% confidence" badge is the only permitted quantitative element.
         var prop = prop("p1", "Test memory", PropositionStatus.ACTIVE);
         var result = mockSimilarityResult(prop, 0.78);
         var results = List.of(result);
@@ -261,9 +263,8 @@ class SidePanelCardConformanceTest {
         var panel = new PropositionsPanel(null, entityResolver);
         panel.showScoredPropositions(results);
 
-        // Should have relevance-bar elements
         var barElements = findByClassName(panel, "relevance-bar");
-        assertFalse(barElements.isEmpty(), "Scored cards should display relevance bar");
+        assertTrue(barElements.isEmpty(), "Scored cards must not display a relevance bar");
     }
 
     @Test

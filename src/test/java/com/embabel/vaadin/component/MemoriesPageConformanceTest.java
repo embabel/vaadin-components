@@ -145,6 +145,34 @@ class MemoriesPageConformanceTest {
         assertEquals(List.of("priya-1"), visibleIds, "entity mention text must be searchable too");
     }
 
+    @Test
+    void instantFilterInNormalModeIsCaseInsensitive() {
+        var mentor = prop("mentor-1", "Mountain Hiking Preferences and Mentorship", Instant.now());
+        var other = prop("other-1", "Different unrelated text", Instant.now().minusSeconds(5));
+        var panel = new PropositionsPanel(repoWith(List.of(mentor, other)), entityResolver);
+        panel.setContextId(CTX);
+        panel.refresh();
+
+        var searchField = findSearchField(panel);
+        searchField.setValue("mentor");
+
+        var visibleIds = allComponents(panel).stream()
+                .filter(c -> c instanceof PropositionCard)
+                .map(c -> (PropositionCard) c)
+                .filter(Component::isVisible)
+                .map(c -> c.getProposition().getId())
+                .toList();
+        assertEquals(List.of("mentor-1"), visibleIds,
+                "lowercase query must match mixed-case text like 'Mentorship'");
+
+        searchField.setValue("");
+        var allVisible = allComponents(panel).stream()
+                .filter(c -> c instanceof PropositionCard)
+                .map(c -> (PropositionCard) c)
+                .allMatch(Component::isVisible);
+        assertTrue(allVisible, "clearing the filter must show all cards again");
+    }
+
     // --- Enter submits the raw query -------------------------------------------------------
 
     @Test

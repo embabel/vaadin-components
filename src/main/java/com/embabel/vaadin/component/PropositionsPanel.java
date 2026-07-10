@@ -132,7 +132,7 @@ public class PropositionsPanel extends VerticalLayout {
         setSpacing(true);
         setSizeFull();
 
-        // Add component-scoped CSS styling for scored mode cards with relevance bars and dedup badges
+        // Add component-scoped CSS styling for scored mode cards and dedup badges
         injectScoredModeStyles();
 
         var headerLayout = new HorizontalLayout();
@@ -287,13 +287,35 @@ public class PropositionsPanel extends VerticalLayout {
                 .map(c -> (PropositionCard) c)
                 .toList();
         int shown = 0;
+        // Clustered mode groups cards under a shared .cluster-container (header + border); track
+        // whether any member of each container matched so the whole container can be hidden when
+        // none did, instead of leaving an empty bordered box behind (same failure mode the
+        // .scored-card-wrapper handling below fixes for scored mode).
+        var clusterHits = new java.util.LinkedHashMap<Component, Boolean>();
         for (var card : cards) {
             boolean hit = q.isEmpty() || matchesQuery(card.getProposition(), q);
-            card.setVisible(hit);
+            // In scored mode each card sits inside a .scored-card-wrapper that carries its own
+            // border/background; hiding just the inner card leaves an empty bordered box behind
+            // and pushes real matches out of view. Toggle the wrapper instead when present.
+            var wrapper = card.getParent()
+                    .filter(p -> p.hasClassName("scored-card-wrapper"))
+                    .orElse(null);
+            var clusterContainer = card.getParent()
+                    .filter(p -> p.hasClassName("cluster-container"))
+                    .orElse(null);
+            if (wrapper != null) {
+                wrapper.setVisible(hit);
+            } else if (clusterContainer != null) {
+                card.setVisible(hit);
+                clusterHits.merge(clusterContainer, hit, Boolean::logicalOr);
+            } else {
+                card.setVisible(hit);
+            }
             if (hit) {
                 shown++;
             }
         }
+        clusterHits.forEach(Component::setVisible);
         propositionCountSpan.setText("(" + shown + (shown == 1 ? " memory)" : " memories)"));
     }
 
@@ -433,21 +455,6 @@ public class PropositionsPanel extends VerticalLayout {
             card.addClassName("scored-card-content");
             cardContainer.add(card);
 
-            // Add relevance bar + score in meta-row
-            double score = result.getScore();
-            var metaRow = new Div();
-            metaRow.addClassName("scored-meta-row");
-
-            var relBar = new Div();
-            relBar.addClassName("relevance-bar");
-            var barFill = new Span();
-            int scorePct = (int) Math.round(score * 100);
-            barFill.getElement().getStyle().set("width", scorePct + "%");
-            relBar.add(barFill);
-
-            metaRow.add(relBar);
-            cardContainer.add(metaRow);
-
             // Add dedup badge if this survivor collapsed other results (positioned absolutely via CSS)
             int collapsedCount = group.getCollapsedCount();
             if (collapsedCount > 0) {
@@ -460,7 +467,7 @@ public class PropositionsPanel extends VerticalLayout {
         }
     }
 
-    /** Inject CSS styling for scored mode cards with relevance bars and dedup badges. */
+    /** Inject CSS styling for scored mode cards and dedup badges. */
     private void injectScoredModeStyles() {
         String css = """
             .scored-card-wrapper {
@@ -489,28 +496,6 @@ public class PropositionsPanel extends VerticalLayout {
 
             .scored-card-content {
               flex: 1;
-            }
-
-            .scored-meta-row {
-              display: flex;
-              align-items: center;
-              gap: var(--lumo-space-xs);
-              margin-top: var(--lumo-space-xs);
-            }
-
-            .relevance-bar {
-              flex: 1;
-              height: 5px;
-              border-radius: 3px;
-              background: var(--lumo-contrast-10pct);
-              overflow: hidden;
-            }
-
-            .relevance-bar > span {
-              display: block;
-              height: 100%;
-              background: var(--lumo-primary-color);
-              border-radius: 3px;
             }
 
             .dedup-collapsed-badge {

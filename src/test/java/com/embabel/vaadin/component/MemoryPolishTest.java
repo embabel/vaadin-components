@@ -46,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -386,6 +388,161 @@ class MemoryPolishTest {
                 "\\.scored-card-wrapper\\s+\\.proposition-card\\s*\\{[^}]*width:\\s*100%[^}]*\\}", Pattern.DOTALL);
         assertTrue(cardRule.matcher(css).find(),
                 "theme stylesheet must set .scored-card-wrapper .proposition-card to width: 100%");
+    }
+
+    // --- D. no relevance bar element in scored mode ----------------------------------------------
+
+    /**
+     * Final user decision: no relevance bar / progress bar / score visualization of any kind on
+     * scored cards — the labeled "NN% confidence" badge is the only permitted quantitative element.
+     */
+    @Test
+    void scoredModeRendersNoRelevanceBarElement() {
+        var ben = prop("ben-1", "Ben hiked the Tre Cime di Lavaredo loop", Instant.now());
+        var priya = prop("priya-1", "Priya organizes the guild lunch", Instant.now().minusSeconds(10));
+
+        var panel = new PropositionsPanel(repoWith(List.of()), entityResolver);
+        panel.setContextId(CTX);
+        panel.showScoredPropositions(List.of(
+                mockSimilarityResult(ben, 0.82),
+                mockSimilarityResult(priya, 0.47)));
+
+        var relevanceBars = allComponents(panel).stream()
+                .filter(c -> c.hasClassName("relevance-bar"))
+                .toList();
+        assertTrue(relevanceBars.isEmpty(), "no .relevance-bar element allowed anywhere in scored mode");
+
+        var texts = allTextNodes(panel);
+        var offenders = texts.stream()
+                .filter(t -> (BARE_PERCENT.matcher(t.trim()).matches() || BARE_DECIMAL.matcher(t.trim()).matches())
+                        && !t.trim().matches("^\\d{1,3}% confidence$"))
+                .toList();
+        assertTrue(offenders.isEmpty(), "no numeric score text besides the confidence badge, found: " + offenders);
+    }
+
+    /**
+     * Self-falsification: re-add a relevance bar and confirm the assertion above goes red, then
+     * the real code stays fixed (this test doesn't mutate the panel under test).
+     */
+    @Test
+    void selfFalsify_relevanceBarCheckCatchesAReintroducedBar() {
+        var ben = prop("ben-1", "Ben hiked the Tre Cime di Lavaredo loop", Instant.now());
+        var panel = new PropositionsPanel(repoWith(List.of()), entityResolver);
+        panel.setContextId(CTX);
+        panel.showScoredPropositions(List.of(mockSimilarityResult(ben, 0.82)));
+
+        // Simulate the relevance bar the fix removed, appended directly under the panel.
+        var rogueBar = new com.vaadin.flow.component.html.Div();
+        rogueBar.addClassName("relevance-bar");
+        panel.getElement().appendChild(rogueBar.getElement());
+
+        var relevanceBars = allComponents(panel).stream()
+                .filter(c -> c.hasClassName("relevance-bar"))
+                .toList();
+        assertFalse(relevanceBars.isEmpty(), "the relevance-bar detection must catch a reintroduced bar");
+    }
+
+    // --- E. L1 filter works in scored mode (wrapper visibility, not just inner card) ------------
+
+    @Test
+    void scoredModeFilterIsCaseInsensitiveAndTogglesWrapperVisibility() {
+        var ui = withUi();
+        try {
+            var mentor = prop("mentor-1", "Mountain Hiking Preferences and Mentorship", Instant.now());
+            var priya = prop("priya-1", "Priya organizes the guild lunch", Instant.now().minusSeconds(10));
+            var panel = new PropositionsPanel(repoWith(List.of()), entityResolver);
+            panel.setContextId(CTX);
+            ui.add(panel);
+            panel.showScoredPropositions(List.of(
+                    mockSimilarityResult(mentor, 0.82),
+                    mockSimilarityResult(priya, 0.47)));
+
+            panel.setSearchQuery("mentor");
+
+            var wrappers = allComponents(panel).stream()
+                    .filter(c -> c.hasClassName("scored-card-wrapper"))
+                    .toList();
+            assertEquals(2, wrappers.size(), "both scored wrappers must still be in the tree");
+
+            var visibleTexts = wrappers.stream()
+                    .filter(Component::isVisible)
+                    .flatMap(w -> allTextNodes(w).stream())
+                    .toList();
+            assertTrue(visibleTexts.stream().anyMatch(t -> t.contains("Mentorship")),
+                    "the Mentorship card must stay visible for a lowercase 'mentor' query");
+            assertTrue(wrappers.stream().anyMatch(w -> !w.isVisible()),
+                    "the non-matching wrapper must be hidden, not just its inner card");
+
+            panel.setSearchQuery("");
+            assertTrue(wrappers.stream().allMatch(Component::isVisible),
+                    "clearing the filter must show all wrappers again");
+        } finally {
+            UI.setCurrent(null);
+        }
+    }
+
+    // --- E2. L1 filter works in clustered mode (container visibility, not just member cards) ----
+
+    @Test
+    void clusteredModeFilterHidesEmptyClusterContainersAndRestoresOnClear() {
+        var ui = withUi();
+        try {
+            var anchorA = prop("anchor-a", "Mountain Hiking Preferences and Mentorship", Instant.now());
+            var similarA = prop("similar-a", "Ben's mentorship notes on hiking trips", Instant.now().minusSeconds(10));
+            var anchorB = prop("anchor-b", "Priya organizes the guild lunch", Instant.now().minusSeconds(20));
+            var similarB = prop("similar-b", "Priya books the lunch venue", Instant.now().minusSeconds(30));
+
+            var simA = mockSimilarityResult(similarA, 0.8);
+            var simB = mockSimilarityResult(similarB, 0.8);
+
+            var repo = mock(PropositionRepository.class);
+            when(repo.query(any(PropositionQuery.class)))
+                    .thenReturn(List.of(anchorA, similarA, anchorB, similarB));
+            when(repo.findClusters(anyDouble(), anyInt(), any(PropositionQuery.class)))
+                    .thenReturn(List.of(
+                            new com.embabel.agent.rag.service.Cluster<>(anchorA, List.of(simA)),
+                            new com.embabel.agent.rag.service.Cluster<>(anchorB, List.of(simB))));
+
+            var panel = new PropositionsPanel(repo, entityResolver);
+            panel.setContextId(CTX);
+            ui.add(panel);
+            panel.refresh();
+
+            var toggle = allComponents(panel).stream()
+                    .filter(c -> c instanceof Button && c.hasClassName("cluster-toggle"))
+                    .map(c -> (Button) c)
+                    .findFirst()
+                    .orElseThrow();
+            toggle.click();
+
+            var containers = allComponents(panel).stream()
+                    .filter(c -> c.hasClassName("cluster-container"))
+                    .toList();
+            assertEquals(2, containers.size(), "both cluster containers must be in the tree");
+
+            // Matches only members of the "mentorship" cluster.
+            panel.setSearchQuery("mentorship");
+
+            var visibleContainers = containers.stream().filter(Component::isVisible).toList();
+            assertEquals(1, visibleContainers.size(), "only the matching cluster's container must stay visible");
+            var visibleTexts = allTextNodes(visibleContainers.get(0));
+            assertTrue(visibleTexts.stream().anyMatch(t -> t.contains("Mentorship")),
+                    "the matching cluster's container must show its matching card");
+            assertTrue(containers.stream().anyMatch(c -> !c.isVisible()),
+                    "the non-matching cluster's container must be hidden, not just left as an empty box");
+
+            // Clearing the filter restores every container.
+            panel.setSearchQuery("");
+            assertTrue(containers.stream().allMatch(Component::isVisible),
+                    "clearing the filter must show all cluster containers again");
+
+            // A query matching nothing hides every container.
+            panel.setSearchQuery("no-such-term-anywhere");
+            assertTrue(containers.stream().noneMatch(Component::isVisible),
+                    "a query matching nothing must hide every cluster container");
+        } finally {
+            UI.setCurrent(null);
+        }
     }
 
     // --- wrapper-level bare-percentage coverage (explicit) --------------------------------------
