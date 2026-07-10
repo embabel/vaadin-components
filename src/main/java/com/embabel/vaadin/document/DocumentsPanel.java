@@ -17,8 +17,6 @@ package com.embabel.vaadin.document;
 
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
-import java.io.InputStream;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -33,13 +31,13 @@ public class DocumentsPanel extends VerticalLayout {
     /**
      * @param documentInfoProvider provides document metadata for listing
      * @param contextSupplier      optional context supplier (null for no-context)
-     * @param onIngestStream       called with (InputStream, filename) when a file is uploaded
+     * @param onIngestStream       called with (InputStream, filename, fromOrg) when a file is uploaded
      * @param onIngestUrl          called with URL string when a URL is submitted
      * @param onDocumentsChanged   callback after any document change (upload, ingest, delete)
      */
     public DocumentsPanel(DocumentInfoProvider documentInfoProvider,
                           Supplier<String> contextSupplier,
-                          BiConsumer<InputStream, String> onIngestStream,
+                          FileUploadSection.IngestHandler onIngestStream,
                           Consumer<String> onIngestUrl,
                           Runnable onDocumentsChanged) {
         this(documentInfoProvider, contextSupplier,

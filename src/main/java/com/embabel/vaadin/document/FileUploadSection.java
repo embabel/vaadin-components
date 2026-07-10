@@ -19,51 +19,43 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
-import java.util.function.BiConsumer;
 
 /**
  * File upload section for documents.
- * Accepts a {@link BiConsumer} of (InputStream, filename) for ingestion.
+ * Accepts an {@link IngestHandler} of (InputStream, filename, fromOrg) for ingestion — the optional
+ * "From" org/domain captures PROVENANCE the file itself can't carry (a downloaded PDF has no origin host).
  */
 public class FileUploadSection extends VerticalLayout {
 
     private static final Logger logger = LoggerFactory.getLogger(FileUploadSection.class);
 
-    /**
-     * Receives an uploaded file plus the optional organization the user attributed it to.
-     * SHIM NOTE: reconstructed from embabel-me's call sites (UserDrawer/GlobalDrawer document
-     * provenance) because the authoritative version is unpublished; reconcile on next sync.
-     */
+    /** Ingest callback carrying the uploaded stream, its filename, and the (possibly blank) source org/domain. */
     @FunctionalInterface
     public interface IngestHandler {
-        /**
-         * @param input    uploaded file content
-         * @param filename original file name
-         * @param fromOrg  organization the document came from, or null/blank when not given
-         */
-        void ingest(InputStream input, String filename, String fromOrg);
+        void accept(InputStream stream, String filename, String fromOrg);
     }
 
-    public FileUploadSection(BiConsumer<InputStream, String> onIngest, Runnable onSuccess) {
-        this((input, filename, fromOrg) -> onIngest.accept(input, filename), onSuccess);
-    }
-
-    /**
-     * @param onIngest  receives (content, filename, fromOrg) for each uploaded file
-     * @param onSuccess runs after a successful ingest
-     */
     public FileUploadSection(IngestHandler onIngest, Runnable onSuccess) {
         setPadding(true);
         setSpacing(true);
 
         var instructions = new Span("Upload documents to add to the knowledge base");
         instructions.addClassName("section-instructions");
+
+        // Optional provenance: which organization / domain this document is from (a downloaded report has no
+        // origin URL, so the user tags it here → (:Document)-[:PUBLISHED_BY]->(:Organization)).
+        var fromField = new TextField("From (organization or domain)");
+        fromField.setPlaceholder("e.g. acme.com");
+        fromField.setClearButtonVisible(true);
+        fromField.setWidthFull();
+        fromField.setId("upload-from-org");
 
         var buffer = new MemoryBuffer();
         var upload = new Upload(buffer);
@@ -80,16 +72,11 @@ public class FileUploadSection extends VerticalLayout {
         );
         upload.setMaxFileSize(10 * 1024 * 1024); // 10MB
 
-        var fromOrgField = new com.vaadin.flow.component.textfield.TextField();
-        fromOrgField.setPlaceholder("From (organization, optional)");
-        fromOrgField.setWidthFull();
-        fromOrgField.addClassName("upload-from-org");
-
         upload.addSucceededListener(event -> {
             var filename = event.getFileName();
             try {
                 var inputStream = buffer.getInputStream();
-                onIngest.ingest(inputStream, filename, fromOrgField.getValue());
+                onIngest.accept(inputStream, filename, fromField.getValue());
 
                 Notification.show("Uploaded: " + filename, 3000, Notification.Position.BOTTOM_CENTER)
                         .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
@@ -108,6 +95,6 @@ public class FileUploadSection extends VerticalLayout {
                     .addThemeVariants(NotificationVariant.LUMO_ERROR);
         });
 
-        add(instructions, fromOrgField, upload);
+        add(instructions, fromField, upload);
     }
 }
