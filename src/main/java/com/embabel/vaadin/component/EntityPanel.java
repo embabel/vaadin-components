@@ -18,11 +18,13 @@ package com.embabel.vaadin.component;
 import com.embabel.agent.rag.model.NamedEntity;
 import com.embabel.agent.rag.model.NamedEntityData;
 import com.embabel.dice.proposition.Proposition;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.dom.Element;
 
 import java.util.List;
 import java.util.Set;
@@ -54,6 +56,13 @@ public class EntityPanel extends Div {
 
     private final NamedEntity entity;
     private Runnable onClose;
+    /**
+     * The "Mentioned in N memories" section, added in the constructor. setRelatedRecords()
+     * runs afterwards but must still slot Contact Facts / Relationships BEFORE this section
+     * to match the spec order (Contact → Relationships → Mentioned in → ...), so we track it
+     * here rather than relying on call order alone.
+     */
+    private Details mentionedSection;
 
     /**
      * Convenience constructor that doesn't explain related memories.
@@ -74,19 +83,20 @@ public class EntityPanel extends Div {
         this.entity = entity;
         addClassName("entity-panel-360");
 
-        // Define dark-mode-aware color tokens as CSS custom properties
-        // These override the spec's hardcoded colors to support both light and dark themes
-        var styleElement = getElement().getNode();
+        // Define dark-mode-aware color tokens as CSS custom properties. Light values are set
+        // as inline defaults; a real injected <style> element carries the dark-mode override
+        // via prefers-color-scheme so it works with no JS round-trip and is inspectable server-side
+        // (a plain executeJs() call can't be asserted on in a unit test — this can).
         getStyle().set("--entity-amber", "#b4790b");
         getStyle().set("--entity-violet", "#7548d6");
         getStyle().set("--entity-green", "#1c9a6c");
-        getElement().executeJs("this.style.setProperty('--entity-amber', '#b4790b'); " +
-                "this.style.setProperty('--entity-violet', '#7548d6'); " +
-                "this.style.setProperty('--entity-green', '#1c9a6c'); " +
-                "(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) && " +
-                "(this.style.setProperty('--entity-amber', '#e0a840'), " +
-                "this.style.setProperty('--entity-violet', '#a686f0'), " +
-                "this.style.setProperty('--entity-green', '#3ecf8e'))");
+
+        Element darkModeStyle = new Element("style");
+        darkModeStyle.setAttribute("class", "entity-panel-360-dark-mode-vars");
+        darkModeStyle.setText(
+                ".entity-panel-360 { --entity-amber: #b4790b; --entity-violet: #7548d6; --entity-green: #1c9a6c; } "
+                        + "@media (prefers-color-scheme: dark) { .entity-panel-360 { --entity-amber: #e0a840; --entity-violet: #a686f0; --entity-green: #3ecf8e; } }");
+        getElement().appendChild(darkModeStyle);
 
         // Use inline styles to apply Lumo-based design matching the entity-360 mock
         getStyle().set("display", "flex");
@@ -181,8 +191,22 @@ public class EntityPanel extends Div {
         if (relatedPropositionsLoader != null) {
             var relatedPropositions = relatedPropositionsLoader.apply(entity.getId());
             if (relatedPropositions != null && !relatedPropositions.isEmpty()) {
-                add(createRelatedSection(relatedPropositions));
+                mentionedSection = createRelatedSection(relatedPropositions);
+                add(mentionedSection);
             }
+        }
+    }
+
+    /**
+     * Adds a section, inserting it before the "Mentioned in" section if one exists so the
+     * spec order (Contact → Relationships → Mentioned in → ...) holds regardless of whether
+     * setRelatedRecords() is called before or after the propositions section was added.
+     */
+    private void addBeforeMentionedSection(Component component) {
+        if (mentionedSection != null) {
+            addComponentAtIndex(indexOf(mentionedSection), component);
+        } else {
+            add(component);
         }
     }
 
@@ -307,10 +331,10 @@ public class EntityPanel extends Div {
     }
 
     /**
-     * Load and render additional related-records sections (contact facts, people, orgs, emails,
-     * meetings, edge chips). Renders each non-empty category as a Details section with proper
-     * ordering and styling to match entity-360 spec hierarchy.
-     * Order: Contact Facts → Relationships → [Mentioned in memories] → People → Orgs → Emails → Meetings
+     * Load and render additional related-records sections (contact facts, people, edge chips,
+     * and a "Related records" umbrella holding Emails/Meetings/Orgs sub-groups). Renders each
+     * non-empty category with proper ordering matching the entity-360 spec hierarchy.
+     * Order: Contact Facts → Relationships → [Mentioned in memories] → People → Related records
      *
      * @param relatedRecordsLoader looks up RelatedRecords by entity id, or null to omit related records
      */
@@ -324,37 +348,107 @@ public class EntityPanel extends Div {
             return;
         }
 
-        // Render contact facts section if non-empty (first in order after header)
+        // Render contact facts section if non-empty (first in order after header). Inserted
+        // before the "Mentioned in" section (added in the constructor) so the spec order holds
+        // regardless of call order between the constructor and this method.
         if (relatedRecords.contactFacts() != null && !relatedRecords.contactFacts().isEmpty()) {
-            add(createContactFactsDetailsSection(relatedRecords.contactFacts()));
+            addBeforeMentionedSection(createContactFactsDetailsSection(relatedRecords.contactFacts()));
         }
 
         // Render edge chips section if non-empty (second in order)
         if (relatedRecords.edgeChips() != null && !relatedRecords.edgeChips().isEmpty()) {
-            add(createEdgeChipsDetailsSection(relatedRecords.edgeChips()));
+            addBeforeMentionedSection(createEdgeChipsDetailsSection(relatedRecords.edgeChips()));
         }
 
-        // Note: Mentioned in memories is added in constructor, so order is: Contact → Relationships → Mentioned in
+        // Mentioned in memories is added in the constructor; order is Contact → Relationships → Mentioned in
 
-        // Render people section if non-empty
+        // Render people section if non-empty (its own section — the spec's own layout keeps
+        // people/mentions distinct from the "Related records" umbrella)
         if (relatedRecords.people() != null && !relatedRecords.people().isEmpty()) {
             add(createRelatedItemsDetailsSection("People", relatedRecords.people()));
         }
 
-        // Render organizations section if non-empty
-        if (relatedRecords.organizations() != null && !relatedRecords.organizations().isEmpty()) {
-            add(createRelatedItemsDetailsSection("Organizations", relatedRecords.organizations()));
+        // Render one "Related records" umbrella section containing Emails / Meetings / Orgs
+        // sub-groups, matching the spec's related-groups markup (entity-360.html:159-198).
+        boolean hasEmails = relatedRecords.emails() != null && !relatedRecords.emails().isEmpty();
+        boolean hasMeetings = relatedRecords.meetings() != null && !relatedRecords.meetings().isEmpty();
+        boolean hasOrgs = relatedRecords.organizations() != null && !relatedRecords.organizations().isEmpty();
+        if (hasEmails || hasMeetings || hasOrgs) {
+            add(createRelatedRecordsUmbrellaSection(
+                    hasEmails ? relatedRecords.emails() : List.of(),
+                    hasMeetings ? relatedRecords.meetings() : List.of(),
+                    hasOrgs ? relatedRecords.organizations() : List.of()));
+        }
+    }
+
+    /**
+     * Builds the spec's single "Related records" section, which contains a sub-group per
+     * record type (Emails / Meetings / Orgs) rather than one flat top-level Details per type.
+     * Each sub-group shows an icon-less "Title (N)" header followed by its rows.
+     */
+    private Details createRelatedRecordsUmbrellaSection(List<RelatedItem> emails, List<RelatedItem> meetings, List<RelatedItem> organizations) {
+        var content = new VerticalLayout();
+        content.setPadding(false);
+        content.setSpacing(false);
+        content.addClassName("entity-related-groups");
+        content.getStyle().set("gap", "12px");
+
+        if (!emails.isEmpty()) {
+            content.add(createRelatedGroup("Emails", emails));
+        }
+        if (!meetings.isEmpty()) {
+            content.add(createRelatedGroup("Meetings", meetings));
+        }
+        if (!organizations.isEmpty()) {
+            content.add(createRelatedGroup("Orgs", organizations));
         }
 
-        // Render emails section if non-empty
-        if (relatedRecords.emails() != null && !relatedRecords.emails().isEmpty()) {
-            add(createRelatedItemsDetailsSection("Emails", relatedRecords.emails()));
-        }
+        var summary = new Span("Related records");
+        summary.getStyle().set("font-size", "10.5px");
+        summary.getStyle().set("text-transform", "uppercase");
+        summary.getStyle().set("letter-spacing", ".04em");
+        summary.getStyle().set("color", "var(--lumo-tertiary-text-color)");
+        summary.getStyle().set("font-weight", "600");
 
-        // Render meetings section if non-empty
-        if (relatedRecords.meetings() != null && !relatedRecords.meetings().isEmpty()) {
-            add(createRelatedItemsDetailsSection("Meetings", relatedRecords.meetings()));
+        var details = new Details(summary, content);
+        details.setOpened(false);
+        details.addClassName("entity-section");
+        details.addClassName("entity-related-records-section");
+
+        return details;
+    }
+
+    /**
+     * One sub-group inside the "Related records" umbrella: a "Title (N)" header (mirroring the
+     * spec's icon + g-head text) followed by its rows.
+     */
+    private Div createRelatedGroup(String title, List<RelatedItem> items) {
+        var group = new Div();
+        group.addClassName("entity-related-group");
+        group.getStyle().set("display", "flex");
+        group.getStyle().set("flex-direction", "column");
+        group.getStyle().set("gap", "5px");
+
+        var header = new Span(title + " (" + items.size() + ")");
+        header.addClassName("entity-related-group-header");
+        header.getStyle().set("font-size", "11px");
+        header.getStyle().set("font-weight", "600");
+        header.getStyle().set("color", "var(--lumo-secondary-text-color)");
+        header.getStyle().set("display", "flex");
+        header.getStyle().set("align-items", "center");
+        header.getStyle().set("gap", "6px");
+        group.add(header);
+
+        var rows = new VerticalLayout();
+        rows.setPadding(false);
+        rows.setSpacing(false);
+        rows.getStyle().set("gap", "5px");
+        for (var item : items) {
+            addRelatedItemRow(rows, item);
         }
+        group.add(rows);
+
+        return group;
     }
 
     private Details createContactFactsDetailsSection(List<String> contactFacts) {
@@ -493,6 +587,7 @@ public class EntityPanel extends Div {
 
             // Add colored dot based on relationship type (using CSS custom properties for dark mode support)
             var dot = new Div();
+            dot.addClassName("entity-edge-chip-dot");
             dot.getStyle().set("width", "6px");
             dot.getStyle().set("height", "6px");
             dot.getStyle().set("border-radius", "50%");

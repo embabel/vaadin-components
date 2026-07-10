@@ -77,26 +77,36 @@ class EntityPanelRecordsTest {
         assertTrue(text.contains("ben.blossom@photonix.example"), "must show contact fact");
         assertTrue(text.contains("Robotics Engineer II"), "must show job title");
 
-        // People section
+        // People section (its own top-level section, per the spec's own layout)
         assertTrue(text.contains("People"), "must render People section");
         assertTrue(text.contains("Alice Chen"), "must show person 1");
         assertTrue(text.contains("Team lead"), "must show person 1 subtitle");
         assertTrue(text.contains("Bob Smith"), "must show person 2");
 
-        // Organizations section
-        assertTrue(text.contains("Organizations"), "must render Organizations section");
-        assertTrue(text.contains("Photonix Robotics"), "must show org");
-        assertTrue(text.contains("Employer"), "must show org subtitle");
-
-        // Emails section
-        assertTrue(text.contains("Emails"), "must render Emails section");
+        // "Related records" umbrella section, containing Emails / Meetings / Orgs sub-groups
+        assertTrue(text.contains("Related records"), "must render the Related records umbrella section");
+        assertTrue(text.contains("Emails (2)"), "must show Emails sub-group header with count");
         assertTrue(text.contains("confirming: switching the team standup to async"), "must show email 1");
         assertTrue(text.contains("Jun 21"), "must show email 1 date");
 
-        // Meetings section
-        assertTrue(text.contains("Meetings"), "must render Meetings section");
+        assertTrue(text.contains("Meetings (1)"), "must show Meetings sub-group header with count");
         assertTrue(text.contains("eng-robotics weekly standup"), "must show meeting");
         assertTrue(text.contains("Recurring"), "must show meeting recurrence");
+
+        assertTrue(text.contains("Orgs (1)"), "must show Orgs sub-group header with count");
+        assertTrue(text.contains("Photonix Robotics"), "must show org");
+        assertTrue(text.contains("Employer"), "must show org subtitle");
+
+        // Old flat top-level "Organizations"/"Emails"/"Meetings" Details sections are gone —
+        // those record types now render only as sub-groups inside the umbrella.
+        var entitySections = allComponents(panel).stream()
+                .filter(c -> c instanceof Details && c.getElement().getClassList().contains("entity-section"))
+                .map(c -> (Details) c)
+                .toList();
+        var topLevelSummaries = entitySections.stream().map(Details::getSummaryText).toList();
+        assertFalse(topLevelSummaries.contains("Organizations"), "must not have a standalone Organizations section — got: " + topLevelSummaries);
+        assertFalse(topLevelSummaries.contains("Emails"), "must not have a standalone Emails section — got: " + topLevelSummaries);
+        assertFalse(topLevelSummaries.contains("Meetings"), "must not have a standalone Meetings section — got: " + topLevelSummaries);
 
         // Edge chips section
         assertTrue(text.contains("Relationships"), "must render Relationships (edge chips) section");
@@ -104,11 +114,21 @@ class EntityPanelRecordsTest {
         assertTrue(text.contains("HAS_EMAIL"), "must show email edge");
         assertTrue(text.contains("ATTENDS"), "must show attends edge");
 
-        // All sections should be Details components with entity-section class
-        var entitySections = allComponents(panel).stream()
-                .filter(c -> c instanceof Details && c.getElement().getClassList().contains("entity-section"))
+        // Contact Facts, Relationships, People, Related records(umbrella) — 4 top-level
+        // entity-section Details (Emails/Meetings/Orgs now live INSIDE the umbrella, not as
+        // separate top-level sections).
+        assertTrue(entitySections.size() == 4,
+                "must have 4 entity-section Details (facts, relationships, people, related-records-umbrella) — got: " + entitySections.size());
+
+        var umbrella = entitySections.stream()
+                .filter(c -> c.getElement().getClassList().contains("entity-related-records-section"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("must have an entity-related-records-section Details"));
+        var groupHeaders = allComponents(umbrella).stream()
+                .filter(c -> c instanceof Span && c.getElement().getClassList().contains("entity-related-group-header"))
+                .map(c -> ((Span) c).getText())
                 .toList();
-        assertTrue(entitySections.size() == 6, "must have 6 entity-section Details (facts, people, orgs, emails, meetings, edges) — got: " + entitySections.size());
+        assertTrue(groupHeaders.size() == 3, "Related records must have 3 sub-groups (Emails, Meetings, Orgs) — got: " + groupHeaders);
     }
 
     @Test
@@ -128,21 +148,22 @@ class EntityPanelRecordsTest {
 
         var text = allText(panel);
 
-        // Only organizations should be rendered
-        assertTrue(text.contains("Organizations"), "must render Organizations section");
+        // Only the Related records umbrella (with its Orgs sub-group) should be rendered
+        assertTrue(text.contains("Related records"), "must render the Related records umbrella section");
+        assertTrue(text.contains("Orgs (1)"), "must show Orgs sub-group header with count");
         assertTrue(text.contains("Acme Corp"), "must show org");
 
         // Other sections should NOT be rendered
         assertFalse(text.contains("Contact Facts"), "must not render empty Contact Facts section");
         assertFalse(text.contains("People"), "must not render empty People section");
-        assertFalse(text.contains("Emails"), "must not render empty Emails section");
-        assertFalse(text.contains("Meetings"), "must not render empty Meetings section");
+        assertFalse(text.contains("Emails ("), "must not render an Emails sub-group when empty");
+        assertFalse(text.contains("Meetings ("), "must not render a Meetings sub-group when empty");
         assertFalse(text.contains("Relationships"), "must not render empty Relationships section");
 
         var entitySections = allComponents(panel).stream()
                 .filter(c -> c instanceof Details && c.getElement().getClassList().contains("entity-section"))
                 .toList();
-        assertTrue(entitySections.size() == 1, "must have exactly 1 entity-section (orgs only) — got: " + entitySections.size());
+        assertTrue(entitySections.size() == 1, "must have exactly 1 entity-section (the Related records umbrella) — got: " + entitySections.size());
     }
 
     @Test
