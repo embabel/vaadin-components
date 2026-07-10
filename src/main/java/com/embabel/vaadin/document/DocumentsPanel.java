@@ -32,20 +32,6 @@ public class DocumentsPanel extends VerticalLayout {
      * @param documentInfoProvider provides document metadata for listing
      * @param contextSupplier      optional context supplier (null for no-context)
      * @param onIngestStream       called with (InputStream, filename, fromOrg) when a file is uploaded
-     * @param onIngestUrl          called with URL string when a URL is submitted
-     * @param onDocumentsChanged   callback after any document change (upload, ingest, delete)
-     */
-    public DocumentsPanel(DocumentInfoProvider documentInfoProvider,
-                          Supplier<String> contextSupplier,
-                          FileUploadSection.IngestHandler onIngestStream,
-                          Consumer<String> onIngestUrl,
-                          Runnable onDocumentsChanged) {
-        this(documentInfoProvider, contextSupplier,
-                (FileUploadSection.IngestHandler) (input, filename, fromOrg) -> onIngestStream.accept(input, filename),
-                onIngestUrl, onDocumentsChanged);
-    }
-
-    /**
      * @param documentInfoProvider provides document metadata for listing
      * @param contextSupplier      optional context supplier (null for no-context)
      * @param onIngest             receives (content, filename, fromOrg) for each uploaded file
