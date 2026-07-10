@@ -276,6 +276,13 @@ public class MemorySection extends VerticalLayout {
     }
 
     /**
+     * Set the handler to invoke after an undo completes in the lineage section.
+     */
+    public void setOnAfterUndo(BiConsumer<String, String> onAfterUndo) {
+        propositionsPanel.setOnAfterUndo(onAfterUndo);
+    }
+
+    /**
      * Set the handler to invoke when an Open button is clicked on a grounding/provenance ref in a lineage section.
      */
     public void setOnOpenRef(Consumer<String> onOpenRef) {
