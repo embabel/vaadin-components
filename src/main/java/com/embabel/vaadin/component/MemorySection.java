@@ -51,6 +51,8 @@ public class MemorySection extends VerticalLayout {
     private static final Logger logger = LoggerFactory.getLogger(MemorySection.class);
 
     private final PropositionsPanel propositionsPanel;
+    private final Button sweepButton;
+    private com.vaadin.flow.shared.Registration sweepListenerRegistration;
 
     public record RememberRequest(InputStream inputStream, String filename) {}
 
@@ -216,6 +218,14 @@ public class MemorySection extends VerticalLayout {
             buttonRow.add(analyzeButton);
         }
 
+        // "Sweep" button — sits in the actions row next to Analyze, matching its style. Hidden
+        // until a host wires setOnSweep; there's no old top-left placement for this to replace,
+        // it's new here.
+        sweepButton = new Button("Sweep", VaadinIcon.REFRESH.create());
+        sweepButton.addClassName("memory-sweep");
+        sweepButton.setVisible(false);
+        buttonRow.add(sweepButton);
+
         // "Clear All" button
         var clearAllButton = new Button("Clear All", VaadinIcon.TRASH.create());
         clearAllButton.addClassName("memory-clear-all");
@@ -316,6 +326,43 @@ public class MemorySection extends VerticalLayout {
      */
     public void setOnSearchSubmit(Consumer<String> onSearchSubmit) {
         propositionsPanel.setOnSearchSubmit(onSearchSubmit);
+    }
+
+    /**
+     * Programmatically set the header search field's text and run the same instant filter that
+     * typing triggers on every keystroke.
+     *
+     * @param query the search text to set; null or empty clears the filter
+     */
+    public void setSearchQuery(String query) {
+        propositionsPanel.setSearchQuery(query);
+    }
+
+    /**
+     * Set the handler invoked with an entity pill's display name when a pill on a memory card
+     * is clicked. Pills stay non-clickable (no cursor change) while this is null.
+     *
+     * @param onEntityPillClick callback receiving the clicked entity's display name, or null to disable
+     */
+    public void setOnEntityPillClick(Consumer<String> onEntityPillClick) {
+        propositionsPanel.setOnEntityPillClick(onEntityPillClick);
+    }
+
+    /**
+     * Set the handler invoked when the "Sweep" button in the actions row (next to Analyze) is
+     * clicked, and show that button. Pass null to hide it again.
+     *
+     * @param onSweep invoked when Sweep is clicked, or null to hide the button
+     */
+    public void setOnSweep(Runnable onSweep) {
+        sweepButton.setVisible(onSweep != null);
+        if (sweepListenerRegistration != null) {
+            sweepListenerRegistration.remove();
+            sweepListenerRegistration = null;
+        }
+        if (onSweep != null) {
+            sweepListenerRegistration = sweepButton.addClickListener(e -> onSweep.run());
+        }
     }
 
     /**

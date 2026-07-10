@@ -97,6 +97,7 @@ public class PropositionsPanel extends VerticalLayout {
     private BiConsumer<String, String> onAfterUndo;
     private Consumer<String> onOpenRef;
     private Predicate<String> openable;
+    private Consumer<String> onEntityPillClick;
     private String contextId;
     private boolean clustered = false;
     private Set<PropositionStatus> statusFilter = MemoryView.ACTIVE.statuses;
@@ -323,6 +324,30 @@ public class PropositionsPanel extends VerticalLayout {
     }
 
     /**
+     * Programmatically set the search field's text and run the same instant (L1) filter that
+     * typing triggers on every keystroke. Doesn't submit for semantic search — that only
+     * happens on Enter, same as when a user types.
+     *
+     * @param query the search text to set; null or empty clears the filter
+     */
+    public void setSearchQuery(String query) {
+        var value = query == null ? "" : query;
+        searchField.setValue(value);
+        applyInstantFilter(value);
+    }
+
+    /**
+     * Set the handler invoked with an entity pill's display name when a pill on a memory card
+     * is clicked. Pills stay non-clickable (no cursor change) for cards rendered while this is
+     * null.
+     *
+     * @param onEntityPillClick callback receiving the clicked entity's display name, or null to disable
+     */
+    public void setOnEntityPillClick(Consumer<String> onEntityPillClick) {
+        this.onEntityPillClick = onEntityPillClick;
+    }
+
+    /**
      * Show or hide the slim "Semantic results for '&lt;label&gt;' — Clear" bar above the list.
      *
      * @param label the submitted query text to display, or null to hide the bar
@@ -423,11 +448,6 @@ public class PropositionsPanel extends VerticalLayout {
                 cardContainer.add(dedupBadge);
             }
 
-            // Add hidden similarity-badge to preserve any backward compatibility
-            var scoreBadge = new Span(scorePct + "%");
-            scoreBadge.addClassName("similarity-badge");
-            cardContainer.add(scoreBadge);
-
             propositionsContent.add(cardContainer);
         }
     }
@@ -496,10 +516,6 @@ public class PropositionsPanel extends VerticalLayout {
               background: var(--lumo-warning-color);
               color: white;
               opacity: 0.9;
-            }
-
-            .similarity-badge {
-              display: none;
             }
             """;
 
@@ -665,7 +681,7 @@ public class PropositionsPanel extends VerticalLayout {
     }
 
     private PropositionCard createCard(Proposition prop) {
-        var card = new PropositionCard(prop, entityResolver, collapseExplanationProvider);
+        var card = new PropositionCard(prop, entityResolver, collapseExplanationProvider, onEntityPillClick);
         card.setLineageProvider(lineageProvider);
         card.setRelatedPropositionsLoader(relatedPropositionsLoader);
         card.setRelatedRecordsLoader(relatedRecordsLoader);
