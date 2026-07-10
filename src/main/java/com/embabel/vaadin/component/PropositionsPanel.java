@@ -97,6 +97,7 @@ public class PropositionsPanel extends VerticalLayout {
     private BiConsumer<String, String> onAfterUndo;
     private Consumer<String> onOpenRef;
     private Predicate<String> openable;
+    private Consumer<String> onEntityPillClick;
     private String contextId;
     private boolean clustered = false;
     private Set<PropositionStatus> statusFilter = MemoryView.ACTIVE.statuses;
@@ -171,6 +172,7 @@ public class PropositionsPanel extends VerticalLayout {
         var refreshButton = new Button(VaadinIcon.REFRESH.create());
         refreshButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
         refreshButton.getElement().setAttribute("title", "Refresh memories");
+        refreshButton.getElement().setAttribute("aria-label", "Refresh memories");
         refreshButton.addClickListener(e -> refresh());
 
         // Search field: L1 instant client-side filter on every keystroke; Enter hands the raw
@@ -182,6 +184,10 @@ public class PropositionsPanel extends VerticalLayout {
         searchField.setPrefixComponent(VaadinIcon.SEARCH.create());
         searchField.setClearButtonVisible(true);
         searchField.addClassName("memory-search-field");
+        // Dominant control of the header row: grows with the row, but stays readable at both
+        // ends — never so narrow it clips typing, never so wide it swallows the other controls.
+        searchField.setMinWidth("320px");
+        searchField.setMaxWidth("480px");
         searchField.addValueChangeListener(e -> applyInstantFilter(e.getValue()));
         searchField.addKeyDownListener(Key.ENTER, e -> {
             if (onSearchSubmit != null) {
@@ -196,7 +202,8 @@ public class PropositionsPanel extends VerticalLayout {
         var infoChip = new Button("?");
         infoChip.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ICON);
         infoChip.addClassName("search-info-chip");
-        infoChip.getElement().setAttribute("title", "Search help");
+        infoChip.getElement().setAttribute("title", "Search help: operators and tips");
+        infoChip.getElement().setAttribute("aria-label", "Search help: operators and tips");
 
         var searchHelpPopover = new Popover();
         searchHelpPopover.setTarget(infoChip);
@@ -219,9 +226,11 @@ public class PropositionsPanel extends VerticalLayout {
         searchWrap.setAlignItems(Alignment.CENTER);
         searchWrap.setSpacing(true);
         searchWrap.addClassName("search-wrap");
+        searchWrap.setFlexGrow(1, searchField);
 
         headerLayout.add(titleSpan, propositionCountSpan, searchWrap, statusSelect, clusterToggle, refreshButton);
-        headerLayout.setFlexGrow(1, titleSpan);
+        // The search field is the dominant control of the header row now, not the title.
+        headerLayout.setFlexGrow(1, searchWrap);
 
         // L2 semantic-results bar: slim, shown above the list when the host reports results
         // for a submitted query (setSearchResultsBar); hidden until then and on clear.
@@ -320,6 +329,30 @@ public class PropositionsPanel extends VerticalLayout {
      */
     public void setOnSearchSubmit(Consumer<String> onSearchSubmit) {
         this.onSearchSubmit = onSearchSubmit;
+    }
+
+    /**
+     * Programmatically set the search field's text and run the same instant (L1) filter that
+     * typing triggers on every keystroke. Doesn't submit for semantic search — that only
+     * happens on Enter, same as when a user types.
+     *
+     * @param query the search text to set; null or empty clears the filter
+     */
+    public void setSearchQuery(String query) {
+        var value = query == null ? "" : query;
+        searchField.setValue(value);
+        applyInstantFilter(value);
+    }
+
+    /**
+     * Set the handler invoked with an entity pill's display name when a pill on a memory card
+     * is clicked. Pills stay non-clickable (no cursor change) for cards rendered while this is
+     * null.
+     *
+     * @param onEntityPillClick callback receiving the clicked entity's display name, or null to disable
+     */
+    public void setOnEntityPillClick(Consumer<String> onEntityPillClick) {
+        this.onEntityPillClick = onEntityPillClick;
     }
 
     /**
@@ -423,11 +456,6 @@ public class PropositionsPanel extends VerticalLayout {
                 cardContainer.add(dedupBadge);
             }
 
-            // Add hidden similarity-badge to preserve any backward compatibility
-            var scoreBadge = new Span(scorePct + "%");
-            scoreBadge.addClassName("similarity-badge");
-            cardContainer.add(scoreBadge);
-
             propositionsContent.add(cardContainer);
         }
     }
@@ -496,10 +524,6 @@ public class PropositionsPanel extends VerticalLayout {
               background: var(--lumo-warning-color);
               color: white;
               opacity: 0.9;
-            }
-
-            .similarity-badge {
-              display: none;
             }
             """;
 
@@ -665,7 +689,7 @@ public class PropositionsPanel extends VerticalLayout {
     }
 
     private PropositionCard createCard(Proposition prop) {
-        var card = new PropositionCard(prop, entityResolver, collapseExplanationProvider);
+        var card = new PropositionCard(prop, entityResolver, collapseExplanationProvider, onEntityPillClick);
         card.setLineageProvider(lineageProvider);
         card.setRelatedPropositionsLoader(relatedPropositionsLoader);
         card.setRelatedRecordsLoader(relatedRecordsLoader);

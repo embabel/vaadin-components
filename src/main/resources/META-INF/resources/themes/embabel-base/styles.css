@@ -1505,3 +1505,15 @@ vaadin-dialog-overlay.content-fit-dialog::part(content) {
   color: var(--lumo-tertiary-text-color);
   font-size: var(--lumo-font-size-xs);
 }
+
+/* Scored-results wrapper (PropositionsPanel#showScoredPropositions) needs its width set here
+   too — same virtual-child rationale as above. */
+.scored-card-wrapper {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.scored-card-wrapper .proposition-card {
+  width: 100%;
+}
+

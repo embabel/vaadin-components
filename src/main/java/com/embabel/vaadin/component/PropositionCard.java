@@ -64,6 +64,7 @@ public class PropositionCard extends Div {
     private HorizontalLayout entitiesLayout;
     private Span textSpan;
     private HorizontalLayout headerLayout;
+    private final Consumer<String> onEntityPillClick;
 
     private static final int MAX_VISIBLE_PILLS = 4;
 
@@ -113,8 +114,25 @@ public class PropositionCard extends Div {
             Proposition prop,
             Function<String, NamedEntity> entityResolver,
             CollapseExplanationProvider collapseExplanationProvider) {
+        this(prop, entityResolver, collapseExplanationProvider, null);
+    }
+
+    /**
+     * Card displaying a proposition, with an optional handler for clicks on its entity pills.
+     *
+     * @param prop the proposition to display
+     * @param entityResolver resolves entity mention IDs to NamedEntity; null to show mentions unresolved
+     * @param collapseExplanationProvider looks up why this proposition was collapsed, if at all; null skips collapse badge
+     * @param onEntityPillClick invoked with an entity pill's display name when clicked; null leaves pills non-clickable for this
+     */
+    public PropositionCard(
+            Proposition prop,
+            Function<String, NamedEntity> entityResolver,
+            CollapseExplanationProvider collapseExplanationProvider,
+            Consumer<String> onEntityPillClick) {
         this.proposition = prop;
         this.entityResolver = entityResolver;
+        this.onEntityPillClick = onEntityPillClick;
         addClassName("proposition-card");
         addClassName("proposition-card-full-width");
 
@@ -208,12 +226,15 @@ public class PropositionCard extends Div {
             resolved = entityResolver.apply(mention.getResolvedId());
         }
 
+        String displayName;
         if (resolved != null) {
             label = resolved.getName();
+            displayName = resolved.getName();
         } else {
             // Fallback: show span text or type, with ? to indicate unresolved
             var base = mention.getSpan() != null ? mention.getSpan() : mention.getType();
             label = base + " ?";
+            displayName = base;
         }
 
         var badge = new Span(label);
@@ -227,7 +248,26 @@ public class PropositionCard extends Div {
             badge.addClassName("unresolved");
         }
 
+        // Pill-click hook: fires the entity's display name when a handler is set, for either
+        // resolved or unresolved pills. Leaves the pill non-clickable (no cursor change) when
+        // no handler is wired, so hosts that don't use this stay exactly as before.
+        if (onEntityPillClick != null) {
+            badge.addClassName("clickable");
+            badge.getElement().addEventListener("click", e -> handlePillClick(displayName));
+        }
+
         return badge;
+    }
+
+    /**
+     * Runs the pill-click callback, if one is wired. Package-visible so tests can call it
+     * directly the same way they call {@link #showEntityDialog(NamedEntity)} — there's no
+     * browser here to fire a real DOM click event, so this is the seam.
+     */
+    void handlePillClick(String displayName) {
+        if (onEntityPillClick != null) {
+            onEntityPillClick.accept(displayName);
+        }
     }
 
     private Button createCollapseBadge(CollapseExplanation explanation) {
