@@ -50,10 +50,26 @@ public class LineageSection extends VerticalLayout {
               --lumo-text-secondary: var(--lumo-secondary-text-color, #5c6370);
               --lumo-text-tertiary: var(--lumo-tertiary-text-color, #8a909c);
               --lumo-surface-weak: var(--lumo-contrast-10pct, #eef0f3);
+              --color-blue: #1676f3;
+              --color-blue-weak: #e8f1fe;
+              --color-amber: #b4790b;
+              --color-amber-weak: #fdf1de;
+              --color-violet: #7548d6;
+              --color-violet-weak: #f1ebfd;
+              --color-green: #1c9a6c;
+              --color-green-weak: #e5f6ee;
             }
 
             @media (prefers-color-scheme: dark) {
               .lineage-section {
+                --color-blue: #4c9aff;
+                --color-blue-weak: #123056;
+                --color-amber: #e0a840;
+                --color-amber-weak: #3a2c10;
+                --color-violet: #a686f0;
+                --color-violet-weak: #2a2140;
+                --color-green: #3ecf8e;
+                --color-green-weak: #123626;
                 --lumo-text-secondary: #a4aab4;
                 --lumo-text-tertiary: #767c87;
                 --lumo-surface-weak: #252932;
@@ -87,30 +103,18 @@ public class LineageSection extends VerticalLayout {
             }
 
             .lineage-card-header .lineage-icon.icon-grounding {
-              background: rgba(176, 121, 11, 0.15);
-              color: var(--lumo-primary-color, #1676f3);
+              background: var(--color-amber-weak);
+              color: var(--color-amber);
             }
 
             .lineage-card-header .lineage-icon.icon-provenance {
-              background: rgba(22, 118, 243, 0.15);
-              color: var(--lumo-primary-color, #1676f3);
+              background: var(--color-blue-weak);
+              color: var(--color-blue);
             }
 
             .lineage-card-header .lineage-icon.icon-collapse {
-              background: rgba(117, 72, 214, 0.15);
-              color: #7548d6;
-            }
-
-            @media (prefers-color-scheme: dark) {
-              .lineage-card-header .lineage-icon.icon-grounding {
-                background: rgba(224, 168, 64, 0.15);
-              }
-              .lineage-card-header .lineage-icon.icon-provenance {
-                background: rgba(76, 154, 255, 0.15);
-              }
-              .lineage-card-header .lineage-icon.icon-collapse {
-                background: rgba(166, 134, 240, 0.15);
-              }
+              background: var(--color-violet-weak);
+              color: var(--color-violet);
             }
 
             .lineage-card-header h3 {
@@ -167,7 +171,7 @@ public class LineageSection extends VerticalLayout {
             }
 
             .lineage-grounding .lineage-ref .ref-go {
-              color: var(--lumo-primary-color, #1676f3);
+              color: var(--color-blue);
               font-size: 11px;
               font-weight: 600;
               flex-shrink: 0;
@@ -199,7 +203,7 @@ public class LineageSection extends VerticalLayout {
               width: 8px;
               height: 8px;
               border-radius: 50%;
-              background: var(--lumo-primary-color, #1676f3);
+              background: var(--color-blue);
               margin-top: 5px;
               flex-shrink: 0;
             }
@@ -237,16 +241,9 @@ public class LineageSection extends VerticalLayout {
               font-weight: 600;
               padding: 1px 7px;
               border-radius: 999px;
-              background: rgba(28, 154, 108, 0.15);
-              color: #1c9a6c;
+              background: var(--color-green-weak);
+              color: var(--color-green);
               margin-left: 6px;
-            }
-
-            @media (prefers-color-scheme: dark) {
-              .lineage-step-body .lineage-badge {
-                background: rgba(62, 207, 142, 0.15);
-                color: #3ecf8e;
-              }
             }
 
             /* Collapse merge chain */
@@ -281,22 +278,12 @@ public class LineageSection extends VerticalLayout {
             }
 
             .lineage-merge-node.merge-survivor {
-              background: rgba(28, 154, 108, 0.15);
-              border-color: #1c9a6c;
+              background: var(--color-green-weak);
+              border-color: var(--color-green);
             }
 
             .lineage-merge-node.merge-survivor .merge-tag {
-              color: #1c9a6c;
-            }
-
-            @media (prefers-color-scheme: dark) {
-              .lineage-merge-node.merge-survivor {
-                background: rgba(62, 207, 142, 0.15);
-                border-color: #3ecf8e;
-              }
-              .lineage-merge-node.merge-survivor .merge-tag {
-                color: #3ecf8e;
-              }
+              color: var(--color-green);
             }
 
             .lineage-merge-arrow {
