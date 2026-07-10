@@ -229,15 +229,14 @@ public class DedupPreviewPanel extends VerticalLayout {
 
     private void updateFooter(DedupPreview preview) {
         var clusterCount = preview.clusters().size();
-        var totalMemories = preview.clusters().stream()
-                .mapToInt(c -> 1 + c.losers().size())
-                .sum();
         var appliedCount = (int) preview.clusters().stream()
                 .filter(c -> appliedClusterIds.contains(c.survivorId()))
                 .count();
 
         var label = clusterCount + " clusters found · " + appliedCount + " applied · " + (clusterCount - appliedCount) + " pending";
-        if (!dryRunMode) {
+        if (dryRunMode) {
+            label += " in dry run";
+        } else {
             label = clusterCount + " clusters found · " + appliedCount + " applied";
         }
         footerLabel.setText(label);
@@ -401,15 +400,16 @@ public class DedupPreviewPanel extends VerticalLayout {
         title.getStyle().set("flex", "1");
         header.add(title);
 
-        // Compute and display average similarity
+        // Compute and display average similarity. An applied cluster always shows
+        // "applied" regardless of whether edge data is present; otherwise show the
+        // computed average only when we actually have edges to compute it from —
+        // never fabricate a number.
         var avgSimilarity = computeAverageSimilarity(cluster);
-        var sigInfoText = cluster.losers().size() + 1 + " propositions · ";
-        if (!Double.isNaN(avgSimilarity)) {
-            sigInfoText += String.format("%.2f avg similarity", avgSimilarity);
-        } else if (appliedClusterIds.contains(cluster.survivorId())) {
-            sigInfoText += "applied";
-        } else {
-            sigInfoText += "0.00 avg similarity";
+        var sigInfoText = cluster.losers().size() + 1 + " propositions";
+        if (appliedClusterIds.contains(cluster.survivorId())) {
+            sigInfoText += " · applied";
+        } else if (!Double.isNaN(avgSimilarity)) {
+            sigInfoText += " · " + String.format("%.2f avg similarity", avgSimilarity);
         }
         var sigInfo = new Span(sigInfoText);
         sigInfo.getStyle().set("font-size", "11px");

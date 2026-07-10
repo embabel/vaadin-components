@@ -318,6 +318,85 @@ class DedupPreviewPanelConformanceTest {
 		assertTrue(applyFired.get(), "Apply button must fire callback");
 	}
 
+	@Test
+	void appliedClusterHeaderShowsAppliedRegardlessOfEdges() {
+		var signal = new DedupPreviewPanel.DedupPreview.Signal("Entity overlap", 1.0, 1.0, false, "");
+		var edge = new DedupPreviewPanel.DedupPreview.Edge("p1", "p2", 0.95, false, List.of(signal));
+		var cluster = new DedupPreviewPanel.DedupPreview.Cluster("p1", "Alice", List.of(new DedupPreviewPanel.DedupPreview.Member("p2", "alice")), List.of(edge));
+		var preview = new DedupPreviewPanel.DedupPreview("run-1", List.of(cluster), List.of());
+
+		var panel = new DedupPreviewPanel();
+		panel.show(preview);
+		panel.markClusterApplied("p1");
+
+		var headers = findComponentsByClassName(panel, "dedup-cluster-head");
+		var headerText = collectAll(headers.get(0)).stream()
+			.filter(c -> c instanceof Span)
+			.map(c -> ((Span) c).getText())
+			.reduce("", (a, b) -> a + " " + b);
+
+		assertTrue(headerText.contains("applied"), "applied cluster header must show 'applied' even though it has edges: " + headerText);
+		assertFalse(headerText.contains("avg similarity"), "applied cluster header must not show 'avg similarity': " + headerText);
+	}
+
+	@Test
+	void unappliedClusterWithEdgesShowsComputedAverage() {
+		var signal = new DedupPreviewPanel.DedupPreview.Signal("Entity overlap", 1.0, 1.0, false, "");
+		var edge = new DedupPreviewPanel.DedupPreview.Edge("p1", "p2", 0.87, false, List.of(signal));
+		var cluster = new DedupPreviewPanel.DedupPreview.Cluster("p1", "Alice", List.of(new DedupPreviewPanel.DedupPreview.Member("p2", "alice")), List.of(edge));
+		var preview = new DedupPreviewPanel.DedupPreview("run-1", List.of(cluster), List.of());
+
+		var panel = new DedupPreviewPanel();
+		panel.show(preview);
+
+		var headers = findComponentsByClassName(panel, "dedup-cluster-head");
+		var headerText = collectAll(headers.get(0)).stream()
+			.filter(c -> c instanceof Span)
+			.map(c -> ((Span) c).getText())
+			.reduce("", (a, b) -> a + " " + b);
+
+		assertTrue(headerText.contains("avg similarity"), "un-applied cluster with edges must show computed avg similarity: " + headerText);
+		assertTrue(headerText.contains("0.87"), "must show the actual computed value: " + headerText);
+	}
+
+	@Test
+	void unappliedClusterWithNoEdgesShowsNoFabricatedAverage() {
+		var cluster = new DedupPreviewPanel.DedupPreview.Cluster("p1", "Alice", List.of(new DedupPreviewPanel.DedupPreview.Member("p2", "alice")), List.of());
+		var preview = new DedupPreviewPanel.DedupPreview("run-1", List.of(cluster), List.of());
+
+		var panel = new DedupPreviewPanel();
+		panel.show(preview);
+
+		var headers = findComponentsByClassName(panel, "dedup-cluster-head");
+		var headerText = collectAll(headers.get(0)).stream()
+			.filter(c -> c instanceof Span)
+			.map(c -> ((Span) c).getText())
+			.reduce("", (a, b) -> a + " " + b);
+
+		assertFalse(headerText.contains("avg similarity"), "no edges and not applied must not show avg similarity: " + headerText);
+		assertFalse(headerText.contains("0.00"), "must never fabricate a 0.00 value: " + headerText);
+	}
+
+	@Test
+	void footerShowsInDryRunSuffixWhenInDryRunMode() {
+		var signal = new DedupPreviewPanel.DedupPreview.Signal("Entity overlap", 1.0, 1.0, false, "");
+		var edge = new DedupPreviewPanel.DedupPreview.Edge("p1", "p2", 0.95, false, List.of(signal));
+		var cluster = new DedupPreviewPanel.DedupPreview.Cluster("p1", "Alice", List.of(new DedupPreviewPanel.DedupPreview.Member("p2", "alice")), List.of(edge));
+		var preview = new DedupPreviewPanel.DedupPreview("run-1", List.of(cluster), List.of());
+
+		var panel = new DedupPreviewPanel();
+		panel.setMode(true);
+		panel.show(preview);
+
+		var footers = findComponentsByClassName(panel, "dedup-footer");
+		var footerText = collectAll(footers.get(0)).stream()
+			.filter(c -> c instanceof Span)
+			.map(c -> ((Span) c).getText())
+			.reduce("", (a, b) -> a + " " + b);
+
+		assertTrue(footerText.contains("in dry run"), "footer must append 'in dry run' suffix when in dry-run mode: " + footerText);
+	}
+
 	private static String extractBadgeText(Component memberRow) {
 		var allComponents = collectAll(memberRow);
 		// Find the first Span that contains either "Survivor" or "Merge"
