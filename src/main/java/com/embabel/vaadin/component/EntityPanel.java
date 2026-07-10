@@ -19,8 +19,10 @@ import com.embabel.agent.rag.model.NamedEntity;
 import com.embabel.agent.rag.model.NamedEntityData;
 import com.embabel.dice.proposition.Proposition;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.HasComponents;
 import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.NativeButton;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -51,11 +53,19 @@ public class EntityPanel extends Div {
 
     /**
      * A related entity: title is the entity name or message, subtitle adds context.
+     * sourceKey, when set, makes the row clickable — "Open ->" resolves it through
+     * onOpenRelatedItem. Null (the default via the two-arg constructor) means the row
+     * isn't openable.
      */
-    public record RelatedItem(String title, String subtitle) {}
+    public record RelatedItem(String title, String subtitle, String sourceKey) {
+        public RelatedItem(String title, String subtitle) {
+            this(title, subtitle, null);
+        }
+    }
 
     private final NamedEntity entity;
     private Runnable onClose;
+    private java.util.function.Consumer<String> onOpenRelatedItem;
     /**
      * The "Mentioned in N memories" section, added in the constructor. setRelatedRecords()
      * runs afterwards but must still slot Contact Facts / Relationships BEFORE this section
@@ -331,6 +341,14 @@ public class EntityPanel extends Div {
     }
 
     /**
+     * Callback for clicking an openable related-item row (one with a non-null sourceKey) —
+     * e.g. an email thread row resolving to its source viewer.
+     */
+    public void setOnOpenRelatedItem(java.util.function.Consumer<String> onOpenRelatedItem) {
+        this.onOpenRelatedItem = onOpenRelatedItem;
+    }
+
+    /**
      * Load and render additional related-records sections (contact facts, people, edge chips,
      * and a "Related records" umbrella holding Emails/Meetings/Orgs sub-groups). Renders each
      * non-empty category with proper ordering matching the entity-360 spec hierarchy.
@@ -538,16 +556,25 @@ public class EntityPanel extends Div {
     }
 
     private void addRelatedItemRow(VerticalLayout content, RelatedItem item) {
-        var itemRow = new Div();
-        itemRow.addClassName("entity-related-item");
-        itemRow.getStyle().set("display", "flex");
-        itemRow.getStyle().set("align-items", "center");
-        itemRow.getStyle().set("gap", "10px");
-        itemRow.getStyle().set("padding", "7px 10px");
-        itemRow.getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
-        itemRow.getStyle().set("border-radius", "6px");
-        itemRow.getStyle().set("background", "var(--lumo-contrast-5pct)");
-        itemRow.getStyle().set("font-size", "12px");
+        boolean openable = item.sourceKey() != null && onOpenRelatedItem != null;
+
+        // Openable rows (a sourceKey plus a registered callback) render as a NativeButton so
+        // the click is a real ClickNotifier event — a plain Div has no click semantics, and
+        // rows without a click target stay a Div so they aren't focusable/keyboard-activatable
+        // for nothing.
+        var itemRow = openable ? new NativeButton() : (HasComponents) new Div();
+        var itemRowComponent = (Component) itemRow;
+        itemRowComponent.getElement().getClassList().add("entity-related-item");
+        itemRowComponent.getElement().getStyle().set("display", "flex");
+        itemRowComponent.getElement().getStyle().set("align-items", "center");
+        itemRowComponent.getElement().getStyle().set("gap", "10px");
+        itemRowComponent.getElement().getStyle().set("padding", "7px 10px");
+        itemRowComponent.getElement().getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
+        itemRowComponent.getElement().getStyle().set("border-radius", "6px");
+        itemRowComponent.getElement().getStyle().set("background", "var(--lumo-contrast-5pct)");
+        itemRowComponent.getElement().getStyle().set("font-size", "12px");
+        itemRowComponent.getElement().getStyle().set("width", "100%");
+        itemRowComponent.getElement().getStyle().set("text-align", "left");
 
         var titleSpan = new Span(item.title());
         titleSpan.getStyle().set("flex", "1");
@@ -561,7 +588,14 @@ public class EntityPanel extends Div {
         subtitleSpan.getStyle().set("flex-shrink", "0");
 
         itemRow.add(titleSpan, subtitleSpan);
-        content.add(itemRow);
+
+        if (openable) {
+            itemRowComponent.getElement().getStyle().set("cursor", "pointer");
+            itemRowComponent.getElement().getClassList().add("entity-related-item-openable");
+            ((NativeButton) itemRow).addClickListener(e -> onOpenRelatedItem.accept(item.sourceKey()));
+        }
+
+        content.add(itemRowComponent);
     }
 
     private Details createEdgeChipsDetailsSection(List<String> edgeChips) {

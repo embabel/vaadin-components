@@ -299,6 +299,53 @@ class EntityPanelRecordsTest {
         assertTrue(text.contains("Senior Engineer"), "must show subtitle");
     }
 
+    @Test
+    void openableRelatedItemFiresOnOpenRelatedItemWithSourceKey() {
+        var records = new EntityPanel.RelatedRecords(
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(new EntityPanel.RelatedItem("Pricing model", "Jun 21", "email:u1:thread-1")),
+                List.of(),
+                List.of()
+        );
+
+        var panel = new EntityPanel(createEntity());
+        var opened = new ArrayList<String>();
+        panel.setOnOpenRelatedItem(opened::add);
+        panel.setRelatedRecords(id -> records);
+
+        var emailRow = allComponents(panel).stream()
+                .filter(c -> c.getElement().getClassList().contains("entity-related-item-openable"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("must render an openable related-item row"));
+
+        com.vaadin.flow.component.ComponentUtil.fireEvent(
+                emailRow,
+                new com.vaadin.flow.component.ClickEvent<>(emailRow));
+
+        assertTrue(opened.contains("email:u1:thread-1"), "click must fire onOpenRelatedItem with the row's sourceKey");
+    }
+
+    @Test
+    void relatedItemWithoutOnOpenRelatedItemCallbackIsNotOpenable() {
+        var records = new EntityPanel.RelatedRecords(
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(new EntityPanel.RelatedItem("Pricing model", "Jun 21", "email:u1:thread-1")),
+                List.of(),
+                List.of()
+        );
+
+        var panel = new EntityPanel(createEntity());
+        panel.setRelatedRecords(id -> records);
+
+        var openable = allComponents(panel).stream()
+                .anyMatch(c -> c.getElement().getClassList().contains("entity-related-item-openable"));
+        assertFalse(openable, "row must not be openable without a registered onOpenRelatedItem callback");
+    }
+
     private static String allText(Component root) {
         var out = new ArrayList<Component>();
         collect(root, out);
