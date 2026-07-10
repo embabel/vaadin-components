@@ -810,6 +810,14 @@ public class PropositionsPanel extends VerticalLayout {
         return container;
     }
 
+    private static String edgeTagTooltip(String tag) {
+        return switch (tag.toLowerCase()) {
+            case "similar" -> "Duplicate candidate — a sweep can merge these";
+            case "related" -> "Grouped for context only — never merged";
+            default -> tag;
+        };
+    }
+
     private Div buildMember(ClusterMemberView member, String clusterId) {
         var wrapper = new Div();
         wrapper.addClassName("member");
@@ -820,6 +828,9 @@ public class PropositionsPanel extends VerticalLayout {
         if (member.edgeTag() != null && !member.edgeTag().isBlank()) {
             var tag = new Span(member.edgeTag());
             tag.addClassName("edge-tag");
+            var tooltip = edgeTagTooltip(member.edgeTag());
+            tag.getElement().setAttribute("title", tooltip);
+            tag.getElement().setAttribute("aria-label", tooltip);
             wrapper.add(tag);
         }
 
@@ -997,7 +1008,13 @@ public class PropositionsPanel extends VerticalLayout {
         var manual = new Span("Manual edge (user-added)");
         manual.addClassName("legend-item");
         manual.addClassName("manual");
-        legend.add(auto, manual);
+        var similar = new Span("similar = duplicate candidate, a sweep can merge it");
+        similar.addClassName("legend-item");
+        similar.addClassName("tag-definition");
+        var related = new Span("related = grouped for context only, never merged");
+        related.addClassName("legend-item");
+        related.addClassName("tag-definition");
+        legend.add(auto, manual, similar, related);
         return legend;
     }
 

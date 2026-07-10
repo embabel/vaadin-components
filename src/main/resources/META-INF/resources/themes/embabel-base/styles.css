@@ -1352,19 +1352,21 @@ vaadin-login-form-wrapper::part(form-title) {
 
 .edge-tag {
   position: absolute;
-  left: -8px;
-  bottom: -19px;
+  left: -15px;
+  bottom: -15px;
   transform: translateX(-50%);
-  font-size: 8.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: lowercase;
+  letter-spacing: 0.03em;
+  line-height: 1.5;
   background: var(--sb-bg-light);
   border: 1px solid var(--sb-border);
   border-radius: 999px;
-  padding: 0 5px;
+  padding: 0 4px;
   color: var(--sb-text-muted);
   z-index: 3;
+  cursor: help;
 }
 
 .member.manual-edge .edge-tag {

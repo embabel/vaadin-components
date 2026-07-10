@@ -376,4 +376,51 @@ class ClustersViewTest {
         var dimmed = members.stream().filter(c -> c.hasClassName("dim")).count();
         assertTrue(dimmed > 0, "expected at least one non-matching member to be dimmed");
     }
+
+    // ---- edge tag tooltips and legend ----
+
+    @Test
+    void edgeTagsHaveTooltipTitlesAndAriaLabels() {
+        var panel = newPanel();
+        panel.setClustersProvider(this::twoClusterSnapshot);
+        toggleClusters(panel);
+
+        var tags = allComponents(panel).stream()
+                .filter(c -> c.hasClassName("edge-tag"))
+                .toList();
+        assertFalse(tags.isEmpty(), "expected edge tags to be rendered");
+
+        var similarTag = tags.stream()
+                .filter(c -> ((Span) c).getText().equals("similar"))
+                .findFirst();
+        assertTrue(similarTag.isPresent(), "expected 'similar' tag");
+        var similarElement = similarTag.get().getElement();
+        assertEquals("Duplicate candidate — a sweep can merge these",
+                     similarElement.getAttribute("title"));
+        assertEquals("Duplicate candidate — a sweep can merge these",
+                     similarElement.getAttribute("aria-label"));
+
+        var relatedTag = tags.stream()
+                .filter(c -> ((Span) c).getText().equals("related"))
+                .findFirst();
+        assertTrue(relatedTag.isPresent(), "expected 'related' tag");
+        var relatedElement = relatedTag.get().getElement();
+        assertEquals("Grouped for context only — never merged",
+                     relatedElement.getAttribute("title"));
+        assertEquals("Grouped for context only — never merged",
+                     relatedElement.getAttribute("aria-label"));
+    }
+
+    @Test
+    void legendIncludesEdgeTagDefinitions() {
+        var panel = newPanel();
+        panel.setClustersProvider(this::twoClusterSnapshot);
+        toggleClusters(panel);
+
+        var text = allText(panel);
+        assertTrue(text.contains("duplicate candidate, a sweep can merge it"),
+                   "legend should define 'similar': " + text);
+        assertTrue(text.contains("grouped for context only, never merged"),
+                   "legend should define 'related': " + text);
+    }
 }
