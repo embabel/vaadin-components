@@ -388,6 +388,97 @@ class MemoryPolishTest {
                 "theme stylesheet must set .scored-card-wrapper .proposition-card to width: 100%");
     }
 
+    // --- D. no relevance bar element in scored mode ----------------------------------------------
+
+    /**
+     * Final user decision: no relevance bar / progress bar / score visualization of any kind on
+     * scored cards — the labeled "NN% confidence" badge is the only permitted quantitative element.
+     */
+    @Test
+    void scoredModeRendersNoRelevanceBarElement() {
+        var ben = prop("ben-1", "Ben hiked the Tre Cime di Lavaredo loop", Instant.now());
+        var priya = prop("priya-1", "Priya organizes the guild lunch", Instant.now().minusSeconds(10));
+
+        var panel = new PropositionsPanel(repoWith(List.of()), entityResolver);
+        panel.setContextId(CTX);
+        panel.showScoredPropositions(List.of(
+                mockSimilarityResult(ben, 0.82),
+                mockSimilarityResult(priya, 0.47)));
+
+        var relevanceBars = allComponents(panel).stream()
+                .filter(c -> c.hasClassName("relevance-bar"))
+                .toList();
+        assertTrue(relevanceBars.isEmpty(), "no .relevance-bar element allowed anywhere in scored mode");
+
+        var texts = allTextNodes(panel);
+        var offenders = texts.stream()
+                .filter(t -> (BARE_PERCENT.matcher(t.trim()).matches() || BARE_DECIMAL.matcher(t.trim()).matches())
+                        && !t.trim().matches("^\\d{1,3}% confidence$"))
+                .toList();
+        assertTrue(offenders.isEmpty(), "no numeric score text besides the confidence badge, found: " + offenders);
+    }
+
+    /**
+     * Self-falsification: re-add a relevance bar and confirm the assertion above goes red, then
+     * the real code stays fixed (this test doesn't mutate the panel under test).
+     */
+    @Test
+    void selfFalsify_relevanceBarCheckCatchesAReintroducedBar() {
+        var ben = prop("ben-1", "Ben hiked the Tre Cime di Lavaredo loop", Instant.now());
+        var panel = new PropositionsPanel(repoWith(List.of()), entityResolver);
+        panel.setContextId(CTX);
+        panel.showScoredPropositions(List.of(mockSimilarityResult(ben, 0.82)));
+
+        // Simulate the relevance bar the fix removed, appended directly under the panel.
+        var rogueBar = new com.vaadin.flow.component.html.Div();
+        rogueBar.addClassName("relevance-bar");
+        panel.getElement().appendChild(rogueBar.getElement());
+
+        var relevanceBars = allComponents(panel).stream()
+                .filter(c -> c.hasClassName("relevance-bar"))
+                .toList();
+        assertFalse(relevanceBars.isEmpty(), "the relevance-bar detection must catch a reintroduced bar");
+    }
+
+    // --- E. L1 filter works in scored mode (wrapper visibility, not just inner card) ------------
+
+    @Test
+    void scoredModeFilterIsCaseInsensitiveAndTogglesWrapperVisibility() {
+        var ui = withUi();
+        try {
+            var mentor = prop("mentor-1", "Mountain Hiking Preferences and Mentorship", Instant.now());
+            var priya = prop("priya-1", "Priya organizes the guild lunch", Instant.now().minusSeconds(10));
+            var panel = new PropositionsPanel(repoWith(List.of()), entityResolver);
+            panel.setContextId(CTX);
+            ui.add(panel);
+            panel.showScoredPropositions(List.of(
+                    mockSimilarityResult(mentor, 0.82),
+                    mockSimilarityResult(priya, 0.47)));
+
+            panel.setSearchQuery("mentor");
+
+            var wrappers = allComponents(panel).stream()
+                    .filter(c -> c.hasClassName("scored-card-wrapper"))
+                    .toList();
+            assertEquals(2, wrappers.size(), "both scored wrappers must still be in the tree");
+
+            var visibleTexts = wrappers.stream()
+                    .filter(Component::isVisible)
+                    .flatMap(w -> allTextNodes(w).stream())
+                    .toList();
+            assertTrue(visibleTexts.stream().anyMatch(t -> t.contains("Mentorship")),
+                    "the Mentorship card must stay visible for a lowercase 'mentor' query");
+            assertTrue(wrappers.stream().anyMatch(w -> !w.isVisible()),
+                    "the non-matching wrapper must be hidden, not just its inner card");
+
+            panel.setSearchQuery("");
+            assertTrue(wrappers.stream().allMatch(Component::isVisible),
+                    "clearing the filter must show all wrappers again");
+        } finally {
+            UI.setCurrent(null);
+        }
+    }
+
     // --- wrapper-level bare-percentage coverage (explicit) --------------------------------------
 
     /**
