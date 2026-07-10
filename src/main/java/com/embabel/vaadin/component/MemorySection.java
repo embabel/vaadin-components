@@ -384,4 +384,47 @@ public class MemorySection extends VerticalLayout {
     public void showScoredPropositions(List<com.embabel.common.core.types.SimilarityResult<Proposition>> results) {
         propositionsPanel.showScoredPropositions(results);
     }
+
+    /**
+     * Hand over a pre-computed clustering for Clusters mode. See
+     * {@link PropositionsPanel#setClustersProvider(Supplier)}.
+     */
+    public void setClustersProvider(Supplier<MemoryClusters.ClusteredMemories> clustersProvider) {
+        propositionsPanel.setClustersProvider(clustersProvider);
+    }
+
+    /**
+     * Set the handler invoked when a user completes the "Link…" popover in Clusters mode.
+     */
+    public void setOnAddEdge(Consumer<MemoryClusters.AddEdgeRequest> onAddEdge) {
+        propositionsPanel.setOnAddEdge(onAddEdge);
+    }
+
+    /**
+     * Set the handler invoked when a user removes a member's edge from a cluster.
+     */
+    public void setOnRemoveEdge(Consumer<MemoryClusters.RemoveEdgeRequest> onRemoveEdge) {
+        propositionsPanel.setOnRemoveEdge(onRemoveEdge);
+    }
+
+    /**
+     * Set the handler invoked, after user confirmation, when "Dissolve cluster" is clicked.
+     */
+    public void setOnDissolveCluster(Consumer<String> onDissolveCluster) {
+        propositionsPanel.setOnDissolveCluster(onDissolveCluster);
+    }
+
+    /**
+     * Set the handler invoked when "Sweep this cluster" is clicked.
+     */
+    public void setOnSweepCluster(Consumer<String> onSweepCluster) {
+        propositionsPanel.setOnSweepCluster(onSweepCluster);
+    }
+
+    /**
+     * Set the handler invoked when "Merge cluster…" is clicked.
+     */
+    public void setOnMergeCluster(Consumer<String> onMergeCluster) {
+        propositionsPanel.setOnMergeCluster(onMergeCluster);
+    }
 }
