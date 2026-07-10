@@ -25,6 +25,7 @@ import com.embabel.vaadin.component.MemoryClusters.ClusterMemberView;
 import com.embabel.vaadin.component.MemoryClusters.ClusteredMemories;
 import com.embabel.vaadin.component.MemoryClusters.EdgeKind;
 import com.embabel.vaadin.component.MemoryClusters.EdgeProvenance;
+import com.embabel.vaadin.component.MemoryClusters.EntityLinkRequest;
 import com.embabel.vaadin.component.MemoryClusters.MemoryClusterView;
 import com.embabel.vaadin.component.MemoryClusters.RemoveEdgeRequest;
 import com.vaadin.flow.component.ClickEvent;
@@ -325,6 +326,178 @@ class ClustersViewTest {
         click(cancel);
 
         assertFalse(allComponents(panel).stream().anyMatch(c -> c.hasClassName("popover")));
+    }
+
+    @Test
+    void linkTargetSearchInvokedWithTypedTextAndResultsRerender() {
+        var panel = newPanel();
+        panel.setClustersProvider(this::twoClusterSnapshot);
+        var queries = new ArrayList<String>();
+        panel.setLinkTargetSearch(q -> {
+            queries.add(q);
+            if ("hik".equals(q)) {
+                return List.of(new MemoryClusters.LinkTarget(
+                        MemoryClusters.LinkTargetKind.ENTITY, "ent-hiking", "Hiking (search marker)"));
+            }
+            return List.of();
+        });
+        toggleClusters(panel);
+
+        var linkButton = allComponents(panel).stream()
+                .filter(c -> c instanceof Button && c.hasClassName("link-btn"))
+                .map(c -> (Button) c)
+                .findFirst()
+                .orElseThrow();
+        click(linkButton);
+
+        assertTrue(queries.contains(""), "empty query should be issued on open: " + queries);
+        assertFalse(allComponents(panel).stream().anyMatch(c -> c.hasClassName("target")),
+                "empty search result is empty, so no target rows yet");
+
+        var searchInput = allComponents(panel).stream()
+                .filter(c -> c instanceof com.vaadin.flow.component.textfield.TextField
+                        && c.hasClassName("p-search-input"))
+                .map(c -> (com.vaadin.flow.component.textfield.TextField) c)
+                .findFirst()
+                .orElseThrow();
+        searchInput.setValue("hik");
+
+        assertTrue(queries.contains("hik"), "typed text should be forwarded to the search function: " + queries);
+        var text = allText(panel);
+        assertTrue(text.contains("Hiking (search marker)"), "re-rendered results should show the marker target: " + text);
+    }
+
+    @Test
+    void entityTargetHidesRelationRowAndFiresEntityLinkRequest() {
+        var panel = newPanel();
+        panel.setClustersProvider(this::twoClusterSnapshot);
+        panel.setLinkTargetSearch(q -> List.of(
+                new MemoryClusters.LinkTarget(MemoryClusters.LinkTargetKind.ENTITY, "ent-1", "Hiking")));
+        var captured = new EntityLinkRequest[1];
+        panel.setOnLinkEntity(req -> captured[0] = req);
+        var addEdgeCalled = new boolean[1];
+        panel.setOnAddEdge(req -> addEdgeCalled[0] = true);
+        toggleClusters(panel);
+
+        var linkButton = allComponents(panel).stream()
+                .filter(c -> c instanceof Button && c.hasClassName("link-btn"))
+                .map(c -> (Button) c)
+                .findFirst()
+                .orElseThrow();
+        click(linkButton);
+
+        var entityTarget = allComponents(panel).stream()
+                .filter(c -> c instanceof Button && c.hasClassName("target-entity"))
+                .map(c -> (Button) c)
+                .findFirst()
+                .orElseThrow();
+        click(entityTarget);
+
+        assertFalse(allComponents(panel).stream()
+                        .anyMatch(c -> c.hasClassName("rel-row") && c.isVisible()),
+                "relation row should be hidden once an entity target is selected");
+
+        var addEdge = allComponents(panel).stream()
+                .filter(c -> c instanceof Button && c.hasClassName("primary"))
+                .map(c -> (Button) c)
+                .findFirst()
+                .orElseThrow();
+        click(addEdge);
+
+        assertEquals("u1", captured[0].propositionId());
+        assertEquals("ent-1", captured[0].entityId());
+        assertFalse(addEdgeCalled[0], "an entity target must never fire the AddEdgeRequest path");
+    }
+
+    @Test
+    void switchingFromEntityTargetBackToClusterTargetRestoresRelationRow() {
+        var panel = newPanel();
+        panel.setClustersProvider(this::twoClusterSnapshot);
+        panel.setLinkTargetSearch(q -> List.of(
+                new MemoryClusters.LinkTarget(MemoryClusters.LinkTargetKind.ENTITY, "ent-1", "Hiking"),
+                new MemoryClusters.LinkTarget(MemoryClusters.LinkTargetKind.CLUSTER, "c1", "Cluster one")));
+        toggleClusters(panel);
+
+        var linkButton = allComponents(panel).stream()
+                .filter(c -> c instanceof Button && c.hasClassName("link-btn"))
+                .map(c -> (Button) c)
+                .findFirst()
+                .orElseThrow();
+        click(linkButton);
+
+        var entityTarget = allComponents(panel).stream()
+                .filter(c -> c instanceof Button && c.hasClassName("target-entity"))
+                .map(c -> (Button) c)
+                .findFirst()
+                .orElseThrow();
+        click(entityTarget);
+
+        assertFalse(allComponents(panel).stream()
+                        .anyMatch(c -> c.hasClassName("rel-row") && c.isVisible()),
+                "relation row should be hidden once an entity target is selected");
+
+        var clusterTarget = allComponents(panel).stream()
+                .filter(c -> c instanceof Button && c.hasClassName("target-cluster"))
+                .map(c -> (Button) c)
+                .findFirst()
+                .orElseThrow();
+        click(clusterTarget);
+
+        assertTrue(allComponents(panel).stream().anyMatch(c -> c.hasClassName("rel-row") && c.isVisible()),
+                "relation row should reappear once a cluster target is selected after an entity target");
+    }
+
+    @Test
+    void memoryAndClusterPathsUnaffectedByEntitySeams() {
+        var panel = newPanel();
+        panel.setClustersProvider(this::twoClusterSnapshot);
+        AddEdgeRequest[] captured = new AddEdgeRequest[1];
+        panel.setOnAddEdge(req -> captured[0] = req);
+        toggleClusters(panel);
+
+        var linkButtons = allComponents(panel).stream()
+                .filter(c -> c instanceof Button && c.hasClassName("link-btn"))
+                .map(c -> (Button) c)
+                .toList();
+        click(linkButtons.get(0));
+
+        var clusterTarget = allComponents(panel).stream()
+                .filter(c -> c instanceof Button && c.hasClassName("target-cluster"))
+                .map(c -> (Button) c)
+                .findFirst()
+                .orElseThrow();
+        click(clusterTarget);
+
+        assertTrue(allComponents(panel).stream().anyMatch(c -> c.hasClassName("rel-row") && c.isVisible()),
+                "relation row must stay visible for cluster targets");
+
+        var addEdge = allComponents(panel).stream()
+                .filter(c -> c instanceof Button && c.hasClassName("primary"))
+                .map(c -> (Button) c)
+                .findFirst()
+                .orElseThrow();
+        click(addEdge);
+
+        assertEquals("c1", captured[0].targetClusterId());
+    }
+
+    @Test
+    void withoutSearchFunctionFallsBackToStaticTargets() {
+        var panel = newPanel();
+        panel.setClustersProvider(this::twoClusterSnapshot);
+        toggleClusters(panel);
+
+        var linkButton = allComponents(panel).stream()
+                .filter(c -> c instanceof Button && c.hasClassName("link-btn"))
+                .map(c -> (Button) c)
+                .findFirst()
+                .orElseThrow();
+        click(linkButton);
+
+        assertTrue(allComponents(panel).stream().anyMatch(c -> c.hasClassName("target-cluster")),
+                "no search function set: clusters should still show as fallback targets");
+        assertTrue(allComponents(panel).stream().anyMatch(c -> c.hasClassName("target-memory")),
+                "no search function set: unclustered memories should still show as fallback targets");
     }
 
     // ---- legend, no similarity numbers ----

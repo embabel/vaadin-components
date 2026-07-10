@@ -28,6 +28,9 @@ import com.embabel.vaadin.component.MemoryClusters.ClusterMemberView;
 import com.embabel.vaadin.component.MemoryClusters.ClusteredMemories;
 import com.embabel.vaadin.component.MemoryClusters.EdgeKind;
 import com.embabel.vaadin.component.MemoryClusters.EdgeProvenance;
+import com.embabel.vaadin.component.MemoryClusters.EntityLinkRequest;
+import com.embabel.vaadin.component.MemoryClusters.LinkTarget;
+import com.embabel.vaadin.component.MemoryClusters.LinkTargetKind;
 import com.embabel.vaadin.component.MemoryClusters.MemoryClusterView;
 import com.embabel.vaadin.component.MemoryClusters.RemoveEdgeRequest;
 import com.vaadin.flow.component.Component;
@@ -119,6 +122,8 @@ public class PropositionsPanel extends VerticalLayout {
     private Consumer<String> onDissolveCluster;
     private Consumer<String> onSweepCluster;
     private Consumer<String> onMergeCluster;
+    private Function<String, List<LinkTarget>> linkTargetSearch;
+    private Consumer<EntityLinkRequest> onLinkEntity;
 
     /**
      * Convenience constructor for callers that don't explain collapses.
@@ -912,38 +917,23 @@ public class PropositionsPanel extends VerticalLayout {
         label.addClassName("p-label");
         popover.add(label);
 
-        var selected = new Object[]{null, null}; // [0] = clusterId, [1] = propositionId
-        var relation = new EdgeKind[]{EdgeKind.DUPLICATE_OF};
-        var targetRows = new java.util.ArrayList<Button>();
+        var searchWrap = new Div();
+        searchWrap.addClassName("p-search");
+        var searchField = new TextField();
+        searchField.setPlaceholder("Search clusters, memories, entities…");
+        searchField.setValueChangeMode(ValueChangeMode.LAZY);
+        searchField.setPrefixComponent(VaadinIcon.SEARCH.create());
+        searchField.addClassName("p-search-input");
+        searchWrap.add(searchField);
+        popover.add(searchWrap);
 
-        for (var cluster : snapshot.clusters()) {
-            var row = buildTargetRow("Cluster", cluster.title() + " (" + cluster.members().size() + " memories)");
-            row.addClickListener(ev -> {
-                selected[0] = cluster.id();
-                selected[1] = null;
-                targetRows.forEach(r -> r.removeClassName("sel"));
-                row.addClassName("sel");
-            });
-            targetRows.add(row);
-            popover.add(row);
-        }
-        for (var candidate : snapshot.unclustered()) {
-            if (candidate.getId().equals(source.getId())) {
-                continue;
-            }
-            var row = buildTargetRow("Memory", candidate.getText());
-            row.addClickListener(ev -> {
-                selected[0] = null;
-                selected[1] = candidate.getId();
-                targetRows.forEach(r -> r.removeClassName("sel"));
-                row.addClassName("sel");
-            });
-            targetRows.add(row);
-            popover.add(row);
-        }
+        var rowsContainer = new Div();
+        rowsContainer.addClassName("p-targets");
+        popover.add(rowsContainer);
 
         var relationLabel = new Span("Relation");
         relationLabel.addClassName("p-label");
+        relationLabel.addClassName("relation-label");
         popover.add(relationLabel);
 
         var relRow = new Div();
@@ -953,6 +943,7 @@ public class PropositionsPanel extends VerticalLayout {
         dupOf.addClassName("sel");
         var relatedTo = new Button("Related to");
         relatedTo.addClassName("rel");
+        var relation = new EdgeKind[]{EdgeKind.DUPLICATE_OF};
         dupOf.addClickListener(ev -> {
             relation[0] = EdgeKind.DUPLICATE_OF;
             dupOf.addClassName("sel");
@@ -966,6 +957,8 @@ public class PropositionsPanel extends VerticalLayout {
         relRow.add(dupOf, relatedTo);
         popover.add(relRow);
 
+        var selectedTarget = new LinkTarget[1];
+
         var actions = new Div();
         actions.addClassName("p-actions");
         var cancel = new Button("Cancel");
@@ -975,11 +968,18 @@ public class PropositionsPanel extends VerticalLayout {
         addEdge.addClassName("btn");
         addEdge.addClassName("primary");
         addEdge.addClickListener(ev -> {
-            if (selected[0] == null && selected[1] == null) {
+            var target = selectedTarget[0];
+            if (target == null) {
                 return;
             }
-            if (onAddEdge != null) {
-                onAddEdge.accept(new AddEdgeRequest(source.getId(), (String) selected[0], (String) selected[1],
+            if (target.kind() == LinkTargetKind.ENTITY) {
+                if (onLinkEntity != null) {
+                    onLinkEntity.accept(new EntityLinkRequest(source.getId(), target.id()));
+                }
+            } else if (onAddEdge != null) {
+                onAddEdge.accept(new AddEdgeRequest(source.getId(),
+                        target.kind() == LinkTargetKind.CLUSTER ? target.id() : null,
+                        target.kind() == LinkTargetKind.MEMORY ? target.id() : null,
                         relation[0]));
             }
             holder.removeAll();
@@ -987,14 +987,76 @@ public class PropositionsPanel extends VerticalLayout {
         actions.add(cancel, addEdge);
         popover.add(actions);
 
+        Runnable[] renderRef = new Runnable[1];
+        renderRef[0] = () -> {
+            var query = searchField.getValue();
+            var targets = linkTargets(query, source, snapshot);
+            rowsContainer.removeAll();
+            for (var target : targets) {
+                var row = buildTargetRow(target);
+                row.addClickListener(ev -> {
+                    selectedTarget[0] = target;
+                    rowsContainer.getChildren().forEach(r -> r.removeClassName("sel"));
+                    row.addClassName("sel");
+                    boolean isEntity = target.kind() == LinkTargetKind.ENTITY;
+                    relationLabel.setVisible(!isEntity);
+                    relRow.setVisible(!isEntity);
+                });
+                rowsContainer.add(row);
+            }
+        };
+        searchField.addValueChangeListener(e -> renderRef[0].run());
+        renderRef[0].run();
+
         return popover;
     }
 
-    private static Button buildTargetRow(String kind, String text) {
-        var row = new Button("[" + kind + "] " + text);
+    /**
+     * The Link… popover's target list for a query: the host's search function when one is set
+     * (empty query gets the host's own default ordering), or the panel's built-in fallback —
+     * clusters then unclustered memories from the provider snapshot — so existing hosts that
+     * never call {@link #setLinkTargetSearch} keep working unchanged.
+     */
+    private List<LinkTarget> linkTargets(String query, Proposition source, ClusteredMemories snapshot) {
+        if (linkTargetSearch != null) {
+            return linkTargetSearch.apply(query == null ? "" : query);
+        }
+        var out = new java.util.ArrayList<LinkTarget>();
+        for (var cluster : snapshot.clusters()) {
+            out.add(new LinkTarget(LinkTargetKind.CLUSTER, cluster.id(),
+                    cluster.title() + " (" + cluster.members().size() + " memories)"));
+        }
+        for (var candidate : snapshot.unclustered()) {
+            if (candidate.getId().equals(source.getId())) {
+                continue;
+            }
+            out.add(new LinkTarget(LinkTargetKind.MEMORY, candidate.getId(), candidate.getText()));
+        }
+        return out;
+    }
+
+    private static String kindLabel(LinkTargetKind kind) {
+        return switch (kind) {
+            case CLUSTER -> "Cluster";
+            case MEMORY -> "Memory";
+            case ENTITY -> "Entity";
+        };
+    }
+
+    private static Button buildTargetRow(LinkTarget target) {
+        var kindText = kindLabel(target.kind());
+        var kindChip = new Span(kindText);
+        kindChip.addClassName("t-kind");
+        if (target.kind() == LinkTargetKind.ENTITY) {
+            kindChip.addClassName("ent");
+        }
+        var labelSpan = new Span(target.label());
+        labelSpan.addClassName("t-txt");
+        var row = new Button();
+        row.getElement().appendChild(kindChip.getElement(), labelSpan.getElement());
         row.addClassName("target");
-        row.addClassName("target-" + kind.toLowerCase());
-        row.getElement().setAttribute("data-kind", kind);
+        row.addClassName("target-" + kindText.toLowerCase());
+        row.getElement().setAttribute("data-kind", kindText);
         row.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
         return row;
     }
@@ -1228,6 +1290,29 @@ public class PropositionsPanel extends VerticalLayout {
      */
     public void setOnAddEdge(Consumer<AddEdgeRequest> onAddEdge) {
         this.onAddEdge = onAddEdge;
+    }
+
+    /**
+     * Set the search function driving the Link… popover's live target list: called with the
+     * search box's text on every value change (including empty, for the host's default
+     * ordering — clusters, then unclustered memories, then top entities). When unset, the panel
+     * falls back to the static clusters + unclustered memories from the provider snapshot.
+     *
+     * @param linkTargetSearch function from query text to the targets to show, or null to fall back
+     */
+    public void setLinkTargetSearch(Function<String, List<LinkTarget>> linkTargetSearch) {
+        this.linkTargetSearch = linkTargetSearch;
+    }
+
+    /**
+     * Set the handler invoked when a user picks an Entity target in the Link… popover and clicks
+     * Add edge — always an association (memory→entity mention), never a cluster edge, so the
+     * relation choice is hidden for entity targets.
+     *
+     * @param onLinkEntity callback receiving the completed request, or null to disable the affordance's effect
+     */
+    public void setOnLinkEntity(Consumer<EntityLinkRequest> onLinkEntity) {
+        this.onLinkEntity = onLinkEntity;
     }
 
     /**

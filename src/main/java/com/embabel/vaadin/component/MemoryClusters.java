@@ -45,6 +45,22 @@ public final class MemoryClusters {
         DUPLICATE_OF, RELATED_TO
     }
 
+    /** What kind of thing a Link… popover search result points at. */
+    public enum LinkTargetKind {
+        CLUSTER, MEMORY, ENTITY
+    }
+
+    /**
+     * One row in the Link… popover's target list, whether it came from the host's search
+     * function or the panel's own default ordering.
+     *
+     * @param kind  cluster, memory, or entity
+     * @param id    the cluster/memory/entity id
+     * @param label the text shown in the row
+     */
+    public record LinkTarget(LinkTargetKind kind, String id, String label) {
+    }
+
     /**
      * A group of memories the UI renders as one cluster container.
      *
@@ -97,5 +113,15 @@ public final class MemoryClusters {
      * @param clusterId           the cluster it's being removed from
      */
     public record RemoveEdgeRequest(String memberPropositionId, String clusterId) {
+    }
+
+    /**
+     * Fired when a user picks an Entity target in the Link… popover and clicks Add edge — an
+     * explicit memory→entity "about" mention, not a cluster edge.
+     *
+     * @param propositionId the memory the Link… action was opened from
+     * @param entityId      the chosen entity's id
+     */
+    public record EntityLinkRequest(String propositionId, String entityId) {
     }
 }

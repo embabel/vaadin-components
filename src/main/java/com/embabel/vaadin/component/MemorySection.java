@@ -408,6 +408,22 @@ public class MemorySection extends VerticalLayout {
     }
 
     /**
+     * Set the search function driving the Link… popover's live target list. See
+     * {@link PropositionsPanel#setLinkTargetSearch(Function)}.
+     */
+    public void setLinkTargetSearch(Function<String, List<MemoryClusters.LinkTarget>> linkTargetSearch) {
+        propositionsPanel.setLinkTargetSearch(linkTargetSearch);
+    }
+
+    /**
+     * Set the handler invoked when a user links a memory to an Entity target. See
+     * {@link PropositionsPanel#setOnLinkEntity(Consumer)}.
+     */
+    public void setOnLinkEntity(Consumer<MemoryClusters.EntityLinkRequest> onLinkEntity) {
+        propositionsPanel.setOnLinkEntity(onLinkEntity);
+    }
+
+    /**
      * Set the handler invoked, after user confirmation, when "Dissolve cluster" is clicked.
      */
     public void setOnDissolveCluster(Consumer<String> onDissolveCluster) {
