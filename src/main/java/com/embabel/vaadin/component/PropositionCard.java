@@ -536,18 +536,15 @@ public class PropositionCard extends Div {
         });
     }
 
-    private static volatile boolean stylesInjected = false;
-
     private void injectCardStyles() {
-        if (stylesInjected) {
-            return;
-        }
-        synchronized (PropositionCard.class) {
-            if (stylesInjected) {
-                return;
-            }
-
-            String css = """
+        // Each card carries its own <style> virtual child, the same pattern PropositionsPanel
+        // uses on itself. We used to gate this behind a static "only the first card in the JVM
+        // needs it" flag, sharing one style element across every card — but that element lives
+        // on whichever card happened to be first, so removing that one card (refresh, undo,
+        // filter) took the styling for every other card down with it. A per-instance style tag
+        // costs a few hundred bytes of virtual DOM per card, which is nothing next to a card
+        // silently going unstyled.
+        String css = """
                 .proposition-card-full-width {
                   width: 100%;
                   padding: var(--lumo-space-s);
@@ -588,10 +585,8 @@ public class PropositionCard extends Div {
                 }
                 """;
 
-            var styleElement = new com.vaadin.flow.dom.Element("style");
-            styleElement.setText(css);
-            getElement().appendVirtualChild(styleElement);
-            stylesInjected = true;
-        }
+        var styleElement = new com.vaadin.flow.dom.Element("style");
+        styleElement.setText(css);
+        getElement().appendVirtualChild(styleElement);
     }
 }

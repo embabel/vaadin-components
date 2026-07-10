@@ -17,11 +17,17 @@ package com.embabel.vaadin.component;
 
 import com.embabel.agent.rag.model.NamedEntity;
 import com.embabel.common.core.types.SimilarityResult;
+import com.embabel.dice.proposition.EntityMention;
 import com.embabel.dice.proposition.Proposition;
 import com.embabel.dice.proposition.PropositionStatus;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.server.VaadinSession;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -43,6 +49,35 @@ class SidePanelCardConformanceTest {
 
     private static final String CTX = "ctx-1";
     private final Function<String, NamedEntity> entityResolver = id -> null;
+
+    private static EntityMention mention(String span) {
+        return new EntityMention(span, "Person", null, com.embabel.dice.proposition.MentionRole.OTHER, java.util.Map.of());
+    }
+
+    private static List<EntityMention> mentions(int count) {
+        var out = new ArrayList<EntityMention>();
+        for (int i = 0; i < count; i++) {
+            out.add(mention("Entity" + i));
+        }
+        return out;
+    }
+
+    private Proposition propWithMentions(String id, List<EntityMention> mentions) {
+        return Proposition.create(
+                id,
+                CTX,
+                "Memory text " + id,
+                mentions,
+                0.9,
+                0.0,
+                0.5,
+                null,
+                List.of(),
+                Instant.now(),
+                Instant.now(),
+                PropositionStatus.ACTIVE
+        );
+    }
 
     private Proposition prop(String id, String text, PropositionStatus status) {
         return Proposition.create(
@@ -275,6 +310,119 @@ class SidePanelCardConformanceTest {
         // 2 weeks ago -> "2w ago"
         var twoWeeksStr = PropositionCard.formatRelativeTime(now.minusSeconds(1209600));
         assertTrue(twoWeeksStr.matches("\\d+w ago"), "Should format as 'Nw ago', got: " + twoWeeksStr);
+    }
+
+    @Test
+    void testEachCardCarriesItsOwnStyleElementEvenAfterAnEarlierCardIsRemoved() {
+        // Regression for a bug where a single shared <style> element, attached to whichever
+        // card happened to be created first, went with that card when it was removed (refresh,
+        // undo, filter) — silently unstyling every card created after it. Each card must inject
+        // its own style element, independent of any other card's lifecycle.
+        var container = new com.vaadin.flow.component.html.Div();
+
+        var firstCard = new PropositionCard(prop("first", "First memory", PropositionStatus.ACTIVE), entityResolver);
+        container.add(firstCard);
+
+        container.remove(firstCard);
+
+        var secondCard = new PropositionCard(prop("second", "Second memory", PropositionStatus.ACTIVE), entityResolver);
+        container.add(secondCard);
+
+        // The injected <style> is attached via Element.appendVirtualChild, which does NOT show
+        // up in getElement().getChildren() (that only lists the normal child list) — it lives in
+        // the element's VirtualChildrenList node feature instead. That's the same low-level list
+        // Vaadin itself walks to serialize virtual children to the client, so reading it is the
+        // real assertion, not a proxy for one.
+        var virtualChildren = secondCard.getElement().getNode()
+                .getFeatureIfInitialized(com.vaadin.flow.internal.nodefeature.VirtualChildrenList.class);
+        assertTrue(virtualChildren.isPresent(), "Second card must have injected a virtual style child");
+        assertEquals(1, virtualChildren.get().size(), "Second card should carry exactly one injected style element");
+
+        var styleElement = com.vaadin.flow.dom.Element.get(virtualChildren.get().get(0));
+        assertEquals("style", styleElement.getTag());
+        assertTrue(styleElement.getText().contains(".proposition-card-full-width"),
+                "Injected style must contain the card's own CSS");
+    }
+
+    @Test
+    void testSixMentionsCapsAtFourPillsPlusOverflowChip() {
+        var prop = propWithMentions("m6", mentions(6));
+        var card = new PropositionCard(prop, entityResolver);
+
+        var pills = findByClassName(card, "mention-badge");
+        assertEquals(4, pills.size(), "Should cap at 4 visible pills for 6 mentions");
+
+        var overflowChips = findByClassName(card, "proposition-pill-overflow");
+        assertEquals(1, overflowChips.size(), "Should show exactly one overflow chip");
+
+        var chipText = ((Button) overflowChips.get(0)).getText();
+        assertTrue(chipText.contains("2"), "Overflow chip should say 2 more, got: " + chipText);
+    }
+
+    @Test
+    void testExactlyFourMentionsShowsFourPillsNoChip() {
+        var prop = propWithMentions("m4", mentions(4));
+        var card = new PropositionCard(prop, entityResolver);
+
+        var pills = findByClassName(card, "mention-badge");
+        assertEquals(4, pills.size(), "Should show all 4 pills");
+
+        var overflowChips = findByClassName(card, "proposition-pill-overflow");
+        assertTrue(overflowChips.isEmpty(), "Should not show overflow chip at exactly the cap");
+    }
+
+    @Test
+    void testTwoMentionsShowsTwoPillsNoChip() {
+        var prop = propWithMentions("m2", mentions(2));
+        var card = new PropositionCard(prop, entityResolver);
+
+        var pills = findByClassName(card, "mention-badge");
+        assertEquals(2, pills.size(), "Should show both pills");
+
+        var overflowChips = findByClassName(card, "proposition-pill-overflow");
+        assertTrue(overflowChips.isEmpty(), "Should not show overflow chip below the cap");
+    }
+
+    @Test
+    void testOverflowChipOpensDialogListingAllMentions() {
+        var ui = withUi();
+        try {
+            var prop = propWithMentions("m6d", mentions(6));
+            var card = new PropositionCard(prop, entityResolver);
+            ui.add(card);
+
+            var overflowChips = findByClassName(card, "proposition-pill-overflow");
+            assertEquals(1, overflowChips.size());
+            var chip = (Button) overflowChips.get(0);
+
+            chip.click();
+            ui.getInternals().getStateTree().runExecutionsBeforeClientResponse();
+
+            var dialog = allComponents(ui).stream()
+                    .filter(c -> c instanceof Dialog)
+                    .map(c -> (Dialog) c)
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("expected the all-pills dialog to open"));
+            assertTrue(dialog.isOpened(), "dialog must be open after clicking the overflow chip");
+
+            var dialogPills = findByClassNameInComponent(dialog, "mention-badge");
+            assertEquals(6, dialogPills.size(), "Dialog should list all 6 mentions, not just the visible 4");
+        } finally {
+            UI.setCurrent(null);
+        }
+    }
+
+    /**
+     * Set up a live UI so components that need one (dialogs) can attach, the same helper
+     * pattern PropositionCardLineageTest uses.
+     */
+    private static UI withUi() {
+        var ui = new UI();
+        var session = Mockito.mock(VaadinSession.class);
+        Mockito.when(session.hasLock()).thenReturn(true);
+        ui.getInternals().setSession(session);
+        UI.setCurrent(ui);
+        return ui;
     }
 
     // --- mock helpers ---------------------------------------------------------------------------
