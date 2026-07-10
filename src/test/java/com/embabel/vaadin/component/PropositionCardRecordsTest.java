@@ -141,8 +141,10 @@ class PropositionCardRecordsTest {
                     "EntityPanel must render the contact fact supplied by the panel-level loader");
             assertTrue(panelText.contains("Acme Corp"),
                     "EntityPanel must render the organization supplied by the panel-level loader");
-            assertTrue(panelText.contains("Organizations"),
-                    "EntityPanel must render the Organizations section header");
+            assertTrue(panelText.contains("Related records"),
+                    "EntityPanel must render the Related records umbrella section header");
+            assertTrue(panelText.contains("Orgs (1)"),
+                    "EntityPanel must render the Orgs sub-group header inside Related records");
         } finally {
             UI.setCurrent(null);
         }
