@@ -18,6 +18,8 @@ package com.embabel.vaadin.component;
 import com.embabel.agent.rag.model.NamedEntity;
 import com.embabel.dice.proposition.EntityMention;
 import com.embabel.dice.proposition.Proposition;
+import com.vaadin.flow.component.Key;
+import com.vaadin.flow.component.Shortcuts;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -25,12 +27,15 @@ import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextArea;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Card component displaying a single proposition with its metadata.
@@ -43,21 +48,103 @@ public class PropositionCard extends Div {
     private final Proposition proposition;
     private final Button editButton;
     private final Button deleteButton;
+    private final HorizontalLayout metaLayout;
     private Consumer<Proposition> onDelete;
     private Consumer<Proposition> onEdit;
     private final Function<String, NamedEntity> entityResolver;
+    private LineageProvider lineageProvider;
+    private Button lineageBadge;
+    private Function<String, java.util.List<Proposition>> relatedPropositionsLoader;
+    private Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader;
+    private BiConsumer<String, String> onUndoMember;
+    private BiConsumer<String, String> onAfterUndo;
+    private Consumer<String> onOpenRef;
+    private Predicate<String> openable;
+    private Span relativeTimeSpan;
+    private HorizontalLayout entitiesLayout;
+    private Span textSpan;
+    private HorizontalLayout headerLayout;
+    private final Consumer<String> onEntityPillClick;
 
+    private static final int MAX_VISIBLE_PILLS = 4;
+
+    /**
+     * Format a creation timestamp as relative time (e.g. "2h ago", "just now").
+     * Returns a short human-readable string showing time elapsed since creation.
+     */
+    public static String formatRelativeTime(java.time.Instant created) {
+        var now = java.time.Instant.now();
+        var durationSeconds = java.time.Duration.between(created, now).getSeconds();
+
+        if (durationSeconds < 60) {
+            return "just now";
+        }
+        var minutes = durationSeconds / 60;
+        if (minutes < 60) {
+            return minutes + "m ago";
+        }
+        var hours = minutes / 60;
+        if (hours < 24) {
+            return hours + "h ago";
+        }
+        var days = hours / 24;
+        if (days < 7) {
+            return days + "d ago";
+        }
+        var weeks = days / 7;
+        return weeks + "w ago";
+    }
+
+    /**
+     * Convenience constructor for callers that don't explain collapses.
+     */
     public PropositionCard(Proposition prop, Function<String, NamedEntity> entityResolver) {
+        this(prop, entityResolver, null);
+    }
+
+    /**
+     * Card displaying a proposition, its metadata (confidence, created time), resolved entity mentions,
+     * and optionally why it was collapsed into another memory. The card provides inline edit and delete.
+     *
+     * @param prop the proposition to display
+     * @param entityResolver resolves entity mention IDs to NamedEntity; null to show mentions unresolved
+     * @param collapseExplanationProvider looks up why this proposition was collapsed, if at all; null skips collapse badge
+     */
+    public PropositionCard(
+            Proposition prop,
+            Function<String, NamedEntity> entityResolver,
+            CollapseExplanationProvider collapseExplanationProvider) {
+        this(prop, entityResolver, collapseExplanationProvider, null);
+    }
+
+    /**
+     * Card displaying a proposition, with an optional handler for clicks on its entity pills.
+     *
+     * @param prop the proposition to display
+     * @param entityResolver resolves entity mention IDs to NamedEntity; null to show mentions unresolved
+     * @param collapseExplanationProvider looks up why this proposition was collapsed, if at all; null skips collapse badge
+     * @param onEntityPillClick invoked with an entity pill's display name when clicked; null leaves pills non-clickable for this
+     */
+    public PropositionCard(
+            Proposition prop,
+            Function<String, NamedEntity> entityResolver,
+            CollapseExplanationProvider collapseExplanationProvider,
+            Consumer<String> onEntityPillClick) {
         this.proposition = prop;
         this.entityResolver = entityResolver;
+        this.onEntityPillClick = onEntityPillClick;
         addClassName("proposition-card");
+        addClassName("proposition-card-full-width");
 
-        var headerLayout = new HorizontalLayout();
+        // Inject CSS for card styling if not already done
+        injectCardStyles();
+
+        headerLayout = new HorizontalLayout();
         headerLayout.setWidthFull();
         headerLayout.setSpacing(true);
         headerLayout.addClassName("proposition-header");
 
-        var textSpan = new Span(prop.getText());
+        textSpan = new Span(prop.getText());
         textSpan.addClassName("proposition-text");
 
         editButton = new Button(VaadinIcon.EDIT.create());
@@ -81,7 +168,7 @@ public class PropositionCard extends Div {
         headerLayout.add(textSpan, editButton, deleteButton);
         headerLayout.setFlexGrow(1, textSpan);
 
-        var metaLayout = new HorizontalLayout();
+        metaLayout = new HorizontalLayout();
         metaLayout.setSpacing(true);
         metaLayout.addClassName("proposition-meta");
 
@@ -91,23 +178,43 @@ public class PropositionCard extends Div {
         confidenceSpan.addClassName(confidencePercent >= 80 ? "high" :
                 confidencePercent >= 50 ? "medium" : "low");
 
-        var timeSpan = new Span(TIME_FORMATTER.format(prop.getCreated()));
-        timeSpan.addClassName("proposition-time");
+        metaLayout.add(confidenceSpan);
 
-        metaLayout.add(confidenceSpan, timeSpan);
+        if (collapseExplanationProvider != null) {
+            collapseExplanationProvider.explain(prop.getId())
+                    .filter(explanation -> !explanation.retired().isEmpty())
+                    .ifPresent(explanation -> metaLayout.add(createCollapseBadge(explanation)));
+        }
+
+        // Create relative time span with absolute time as tooltip
+        relativeTimeSpan = new Span(formatRelativeTime(prop.getCreated()));
+        relativeTimeSpan.addClassName("proposition-relative-time");
+        relativeTimeSpan.getElement().setAttribute("title", TIME_FORMATTER.format(prop.getCreated()));
 
         var mentions = prop.getMentions();
         if (!mentions.isEmpty()) {
-            var entitiesLayout = new HorizontalLayout();
+            entitiesLayout = new HorizontalLayout();
             entitiesLayout.setSpacing(false);
             entitiesLayout.addClassName("proposition-entities");
 
-            for (var mention : mentions) {
-                entitiesLayout.add(createMentionBadge(mention));
+            // Cap visible pills to MAX_VISIBLE_PILLS; render "+N" chip for the rest
+            int visibleCount = Math.min(mentions.size(), MAX_VISIBLE_PILLS);
+            for (int i = 0; i < visibleCount; i++) {
+                entitiesLayout.add(createMentionBadge(mentions.get(i)));
             }
-            add(headerLayout, metaLayout, entitiesLayout);
+
+            if (mentions.size() > MAX_VISIBLE_PILLS) {
+                int overflowCount = mentions.size() - MAX_VISIBLE_PILLS;
+                var overflowChip = new Button("+" + overflowCount + " more");
+                overflowChip.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+                overflowChip.addClassName("proposition-pill-overflow");
+                overflowChip.addClickListener(e -> showAllPills(mentions));
+                entitiesLayout.add(overflowChip);
+            }
+
+            add(headerLayout, metaLayout, entitiesLayout, relativeTimeSpan);
         } else {
-            add(headerLayout, metaLayout);
+            add(headerLayout, metaLayout, relativeTimeSpan);
         }
     }
 
@@ -119,12 +226,15 @@ public class PropositionCard extends Div {
             resolved = entityResolver.apply(mention.getResolvedId());
         }
 
+        String displayName;
         if (resolved != null) {
             label = resolved.getName();
+            displayName = resolved.getName();
         } else {
             // Fallback: show span text or type, with ? to indicate unresolved
             var base = mention.getSpan() != null ? mention.getSpan() : mention.getType();
             label = base + " ?";
+            displayName = base;
         }
 
         var badge = new Span(label);
@@ -138,18 +248,274 @@ public class PropositionCard extends Div {
             badge.addClassName("unresolved");
         }
 
+        // Pill-click hook: fires the entity's display name when a handler is set, for either
+        // resolved or unresolved pills. Leaves the pill non-clickable (no cursor change) when
+        // no handler is wired, so hosts that don't use this stay exactly as before.
+        if (onEntityPillClick != null) {
+            badge.addClassName("clickable");
+            badge.getElement().addEventListener("click", e -> handlePillClick(displayName));
+        }
+
         return badge;
     }
 
-    private void showEntityDialog(NamedEntity entity) {
+    /**
+     * Runs the pill-click callback, if one is wired. Package-visible so tests can call it
+     * directly the same way they call {@link #showEntityDialog(NamedEntity)} — there's no
+     * browser here to fire a real DOM click event, so this is the seam.
+     */
+    void handlePillClick(String displayName) {
+        if (onEntityPillClick != null) {
+            onEntityPillClick.accept(displayName);
+        }
+    }
+
+    private Button createCollapseBadge(CollapseExplanation explanation) {
+        var badge = new Button("Merged " + explanation.retired().size() + " duplicate"
+                + (explanation.retired().size() == 1 ? "" : "s"), VaadinIcon.COMPRESS_SQUARE.create());
+        badge.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+        badge.addClassName("collapse-explanation-badge");
+        badge.getElement().setAttribute("title", "Show why these memories were merged");
+        badge.addClickListener(e -> showCollapseDialog(explanation));
+        return badge;
+    }
+
+    private void showCollapseDialog(CollapseExplanation explanation) {
         var dialog = new Dialog();
-        dialog.setHeaderTitle(entity.getName());
+        dialog.setHeaderTitle("Why this memory was merged");
+        dialog.setCloseOnOutsideClick(true);
+        // Esc-to-close: the built-in closeOnEsc only fires when focus is inside the overlay, and
+        // this dialog opens over the user drawer, which keeps focus — so Esc lands on the body and
+        // never reaches it. A UI-scoped shortcut tied to the dialog's lifecycle closes it wherever
+        // focus happens to be, and is torn down automatically when the dialog detaches.
+        Shortcuts.addShortcutListener(dialog, dialog::close, Key.ESCAPE);
+        // Resizable + draggable + content-fit sizing with viewport caps.
+        Dialogs.resizableContentFit(dialog);
+        // Preserve the custom overlay class for styling.
+        // Class must go on the teleported overlay, not the (hidden) dialog host, so styling
+        // and tests can target the visible dialog.
+        dialog.getElement().setProperty("overlayClass", "content-fit-dialog collapse-explanation-dialog");
+
+        var content = new VerticalLayout();
+        content.setPadding(false);
+        content.setSpacing(true);
+        content.addClassName("collapse-explanation-content");
+
+        var survivorLabel = new Span("Kept: " + explanation.survivorText());
+        survivorLabel.addClassName("collapse-survivor-text");
+        content.add(survivorLabel);
+
+        for (var member : explanation.retired()) {
+            content.add(createRetiredMemberSection(explanation, member));
+        }
+
+        dialog.add(content);
+        dialog.getFooter().add(new Button("Close", e -> dialog.close()));
+        dialog.open();
+    }
+
+    VerticalLayout createRetiredMemberSection(CollapseExplanation explanation, CollapseExplanation.RetiredMember member) {
+        var section = new VerticalLayout();
+        section.setPadding(false);
+        section.setSpacing(false);
+        section.addClassName("collapse-retired-member");
+
+        var text = member.text() != null ? member.text() : "(memory " + member.propositionId() + ")";
+        var displayText = "Folded in: " + text;
+
+        if (member.priorStatus() != null && !member.priorStatus().isBlank()) {
+            displayText += "  (was " + member.priorStatus() + ")";
+        }
+
+        var textSpan = new Span(displayText);
+        textSpan.addClassName("collapse-retired-text");
+        section.add(textSpan);
+
+        var edge = explanation.edges().stream()
+                .filter(e -> e.anchorId().equals(member.propositionId()) || e.memberId().equals(member.propositionId()))
+                .findFirst();
+
+        edge.ifPresent(e -> {
+            var signalsLayout = new VerticalLayout();
+            signalsLayout.setPadding(false);
+            signalsLayout.setSpacing(false);
+            signalsLayout.addClassName("collapse-signals");
+
+            for (var signal : e.signals()) {
+                var scorePct = (int) Math.round(signal.score() * 100);
+                var reason = signal.explanation() != null ? " — " + signal.explanation() : "";
+                var signalSpan = new Span(signal.signal() + ": " + scorePct + "%" + reason);
+                signalSpan.addClassName("collapse-signal");
+                if (signal.veto()) {
+                    signalSpan.addClassName("collapse-signal-veto");
+                }
+                signalsLayout.add(signalSpan);
+            }
+            section.add(signalsLayout);
+        });
+
+        return section;
+    }
+
+    /**
+     * Give this card a way to trace where its memory came from. When set, a "Lineage" badge
+     * appears offering a dialog with the grounding/provenance/collapse trail; when cleared, the
+     * badge is removed.
+     *
+     * @param lineageProvider looks up lineage for a proposition id, or null to hide the affordance
+     */
+    public void setLineageProvider(LineageProvider lineageProvider) {
+        this.lineageProvider = lineageProvider;
+        if (lineageBadge != null) {
+            metaLayout.remove(lineageBadge);
+            lineageBadge = null;
+        }
+        if (lineageProvider != null) {
+            lineageBadge = createLineageBadge(lineageProvider);
+            metaLayout.add(lineageBadge);
+        }
+    }
+
+    /**
+     * Give entity dialogs a way to show memories mentioning the entity. When set,
+     * entity panels display a collapsed "Mentioned in N memories" section with those propositions.
+     *
+     * @param relatedPropositionsLoader looks up propositions mentioning an entity id,
+     *                                   or null to omit the related-memories section
+     */
+    public void setRelatedPropositionsLoader(Function<String, java.util.List<Proposition>> relatedPropositionsLoader) {
+        this.relatedPropositionsLoader = relatedPropositionsLoader;
+    }
+
+    /**
+     * Give entity dialogs additional related-records sections (contact facts, people, orgs,
+     * emails, meetings, edge chips). When set, entity panels load and display these sections.
+     *
+     * @param relatedRecordsLoader looks up RelatedRecords by entity id,
+     *                             or null to omit related records
+     */
+    public void setRelatedRecordsLoader(Function<String, EntityPanel.RelatedRecords> relatedRecordsLoader) {
+        this.relatedRecordsLoader = relatedRecordsLoader;
+    }
+
+    /**
+     * Set the handler to invoke when an "Undo this merge" button is clicked in the lineage section.
+     *
+     * @param onUndoMember callback receiving (survivorId, retiredMemberId) when undo is clicked,
+     *                     or null to disable undo functionality
+     */
+    public void setOnUndoMember(BiConsumer<String, String> onUndoMember) {
+        this.onUndoMember = onUndoMember;
+    }
+
+    /**
+     * Set the handler to invoke once an undo has fully landed in the lineage section — the
+     * backend restore ran and the section already re-rendered from fresh data. See
+     * {@link LineageSection#setOnAfterUndo(BiConsumer)} for the exact ordering guarantee.
+     *
+     * @param onAfterUndo callback receiving (survivorId, retiredMemberId) after undo has landed,
+     *                    or null to disable
+     */
+    public void setOnAfterUndo(BiConsumer<String, String> onAfterUndo) {
+        this.onAfterUndo = onAfterUndo;
+    }
+
+    /**
+     * Set the handler to invoke when a grounding or provenance ref is opened in the lineage section.
+     *
+     * @param onOpenRef callback receiving the ref string when opened, or null to disable
+     */
+    public void setOnOpenRef(Consumer<String> onOpenRef) {
+        this.onOpenRef = onOpenRef;
+    }
+
+    /**
+     * Set the predicate to determine which refs are openable in the lineage section.
+     *
+     * @param openable predicate returning true if a ref should be openable, or null if all are openable
+     */
+    public void setOpenable(Predicate<String> openable) {
+        this.openable = openable;
+    }
+
+    private Button createLineageBadge(LineageProvider provider) {
+        var badge = new Button("Lineage", VaadinIcon.CONNECT.create());
+        badge.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+        badge.addClassName("lineage-badge");
+        badge.getElement().setAttribute("title", "Show where this memory came from");
+        badge.addClickListener(e -> showLineageDialog(provider));
+        return badge;
+    }
+
+    private void showLineageDialog(LineageProvider provider) {
+        var dialog = new Dialog();
+        dialog.setHeaderTitle("Lineage");
+        Shortcuts.addShortcutListener(dialog, dialog::close, Key.ESCAPE);
+        // Resizable + draggable + content-fit sizing with viewport caps.
+        Dialogs.resizableContentFit(dialog);
+        // Preserve the custom overlay class for styling.
+        dialog.getElement().setProperty("overlayClass", "content-fit-dialog lineage-dialog");
+
+        var section = new LineageSection(provider);
+        if (onUndoMember != null) {
+            section.setOnUndoMember(onUndoMember);
+        }
+        if (onAfterUndo != null) {
+            section.setOnAfterUndo(onAfterUndo);
+        }
+        if (onOpenRef != null) {
+            section.setOnOpenRef(onOpenRef);
+        }
+        if (openable != null) {
+            section.setOpenable(openable);
+        }
+        section.show(proposition.getId());
+        dialog.add(section);
+        dialog.getFooter().add(new Button("Close", e -> dialog.close()));
+        dialog.open();
+    }
+
+    private void showAllPills(java.util.List<EntityMention> mentions) {
+        var dialog = new Dialog();
+        dialog.setHeaderTitle("All Entity References");
         dialog.setWidth("400px");
+        Shortcuts.addShortcutListener(dialog, dialog::close, Key.ESCAPE);
+
+        var content = new VerticalLayout();
+        content.setPadding(false);
+        content.setSpacing(true);
+        content.addClassName("all-pills-dialog-content");
+
+        for (var mention : mentions) {
+            content.add(createMentionBadge(mention));
+        }
+
+        dialog.add(content);
+        dialog.getFooter().add(new Button("Close", e -> dialog.close()));
+        dialog.open();
+    }
+
+    // Package-visible (not private) only so tests can drive the real dialog-opening path
+    // directly, the same way clicking a mention badge does, without needing a browser to
+    // fire the DOM click event.
+    void showEntityDialog(NamedEntity entity) {
+        var dialog = new Dialog();
         dialog.setCloseOnEsc(true);
         dialog.setCloseOnOutsideClick(true);
-        dialog.addDialogCloseActionListener(e -> dialog.close());
-        dialog.add(new EntityPanel(entity));
-        dialog.getFooter().add(new Button("Close", e -> dialog.close()));
+        // Add Esc-to-close shortcut (similar to other dialogs in this card)
+        Shortcuts.addShortcutListener(dialog, dialog::close, Key.ESCAPE);
+        // Resizable + draggable + content-fit sizing with viewport caps.
+        Dialogs.resizableContentFit(dialog);
+        // Preserve the custom overlay class for styling.
+        dialog.getElement().setProperty("overlayClass", "content-fit-dialog entity-360-dialog");
+
+        var panel = new EntityPanel(entity, relatedPropositionsLoader);
+        panel.setOnClose(dialog::close);
+        if (relatedRecordsLoader != null) {
+            panel.setRelatedRecords(relatedRecordsLoader);
+        }
+        dialog.add(panel);
+
         dialog.open();
     }
 
@@ -168,6 +534,14 @@ public class PropositionCard extends Div {
 
     public Proposition getProposition() {
         return proposition;
+    }
+
+    /**
+     * Programmatically open the inline editor for this card's memory text.
+     * Displays the edit area and Save/Cancel buttons, the same as clicking the edit pencil icon.
+     */
+    public void openEditor() {
+        startEditing(textSpan, headerLayout);
     }
 
     private void startEditing(Span textSpan, HorizontalLayout headerLayout) {
@@ -210,5 +584,59 @@ public class PropositionCard extends Div {
             remove(editContainer);
             headerLayout.setVisible(true);
         });
+    }
+
+    private void injectCardStyles() {
+        // Each card carries its own <style> virtual child, the same pattern PropositionsPanel
+        // uses on itself. We used to gate this behind a static "only the first card in the JVM
+        // needs it" flag, sharing one style element across every card — but that element lives
+        // on whichever card happened to be first, so removing that one card (refresh, undo,
+        // filter) took the styling for every other card down with it. A per-instance style tag
+        // costs a few hundred bytes of virtual DOM per card, which is nothing next to a card
+        // silently going unstyled.
+        String css = """
+                .proposition-card-full-width {
+                  width: 100%;
+                  padding: var(--lumo-space-s);
+                  display: flex;
+                  flex-direction: column;
+                  gap: var(--lumo-space-xs);
+                }
+
+                .proposition-card-full-width .proposition-text {
+                  display: -webkit-box;
+                  -webkit-line-clamp: 2;
+                  -webkit-box-orient: vertical;
+                  overflow: hidden;
+                  word-break: break-word;
+                }
+
+                .proposition-card-full-width .proposition-header {
+                  flex-wrap: wrap;
+                  align-items: flex-start;
+                }
+
+                .proposition-card-full-width .proposition-meta {
+                  flex-wrap: wrap;
+                  gap: var(--lumo-space-xs);
+                  font-size: var(--lumo-font-size-s);
+                }
+
+                .proposition-card-full-width .proposition-entities {
+                  flex-wrap: wrap;
+                  gap: var(--lumo-space-xs);
+                }
+
+                .proposition-card-full-width .proposition-relative-time {
+                  font-size: var(--lumo-font-size-xs);
+                  color: var(--lumo-secondary-text-color);
+                  text-align: right;
+                  margin-top: var(--lumo-space-xs);
+                }
+                """;
+
+        var styleElement = new com.vaadin.flow.dom.Element("style");
+        styleElement.setText(css);
+        getElement().appendVirtualChild(styleElement);
     }
 }
