@@ -15,6 +15,9 @@
  */
 package com.embabel.vaadin.component;
 
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -31,4 +34,22 @@ public interface CollapseExplanationProvider {
      * into it; empty if this memory was never involved in a collapse
      */
     Optional<CollapseExplanation> explain(String propositionId);
+
+    /**
+     * Looks up collapse explanations for a whole batch of propositions in one go — the panel calls
+     * this once per render instead of calling {@link #explain(String)} once per card, so a host with
+     * a real batch query (a single Cypher lookup, say) can avoid one round trip per memory shown.
+     * The default just loops over {@link #explain(String)}, so existing providers keep working
+     * unchanged until they choose to override this.
+     *
+     * @param propositionIds ids of the propositions being rendered
+     * @return a map from id to explanation, containing only ids that actually had a collapse
+     */
+    default Map<String, CollapseExplanation> explainAll(Collection<String> propositionIds) {
+        var result = new LinkedHashMap<String, CollapseExplanation>();
+        for (var id : propositionIds) {
+            explain(id).ifPresent(explanation -> result.put(id, explanation));
+        }
+        return result;
+    }
 }

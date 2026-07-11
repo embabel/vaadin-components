@@ -54,11 +54,14 @@ import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.dom.Element;
 
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -92,6 +95,14 @@ public class PropositionsPanel extends VerticalLayout {
     private final PropositionRepository propositionRepository;
     private final Function<String, NamedEntity> entityResolver;
     private final CollapseExplanationProvider collapseExplanationProvider;
+    /**
+     * Collapse explanations resolved for the batch of propositions currently being rendered.
+     * Populated once per render pass via {@link #resolveExplanations(Collection)} — {@link #createCard}
+     * and {@link #wireUndoMergeLink} read from this map instead of hitting the provider per card,
+     * so a 50-memory refresh costs one batch lookup instead of 50 (or 100 — the card itself also
+     * looked up the badge) individual ones.
+     */
+    private Map<String, CollapseExplanation> resolvedExplanations = Map.of();
     private final VerticalLayout propositionsContent;
     private final Span propositionCountSpan;
     private final Select<MemoryView> statusSelect;
@@ -500,6 +511,10 @@ public class PropositionsPanel extends VerticalLayout {
                     .considerResult(result);
         }
 
+        resolveExplanations(dedupMap.values().stream()
+                .map(group -> group.getSurvivor().getMatch().getId())
+                .toList());
+
         for (var group : dedupMap.values()) {
             var result = group.getSurvivor();
             var cardContainer = new Div();
@@ -623,6 +638,7 @@ public class PropositionsPanel extends VerticalLayout {
             return;
         }
 
+        resolveExplanations(propositions.stream().map(Proposition::getId).toList());
         propositions.stream()
                 .sorted(Comparator.comparing(Proposition::getCreated).reversed())
                 .forEach(prop -> propositionsContent.add(createCard(prop)));
@@ -658,6 +674,16 @@ public class PropositionsPanel extends VerticalLayout {
             propositionsContent.add(emptyMessage);
             return;
         }
+
+        // One batch lookup for every id about to be rendered (clustered + unclustered), instead of
+        // one provider call per card as the loops below create them.
+        var renderedIds = new LinkedHashSet<String>();
+        allPropositions.forEach(p -> renderedIds.add(p.getId()));
+        for (var cluster : clusters) {
+            renderedIds.add(cluster.getAnchor().getId());
+            cluster.getSimilar().forEach(sim -> renderedIds.add(sim.getMatch().getId()));
+        }
+        resolveExplanations(renderedIds);
 
         // Render each cluster as a light, always-open container per the approved design: a
         // slim header ("Cluster: N similar memories" + shared entity chips) holding the member
@@ -751,6 +777,11 @@ public class PropositionsPanel extends VerticalLayout {
             propositionsContent.add(emptyMessage);
             return;
         }
+
+        var renderedIds = new LinkedHashSet<String>();
+        clusters.forEach(c -> c.members().forEach(m -> renderedIds.add(m.proposition().getId())));
+        unclustered.forEach(p -> renderedIds.add(p.getId()));
+        resolveExplanations(renderedIds);
 
         for (var cluster : clusters) {
             propositionsContent.add(buildClusterContainer(cluster));
@@ -1041,7 +1072,11 @@ public class PropositionsPanel extends VerticalLayout {
      */
     private List<LinkTarget> linkTargets(String query, Proposition source, ClusteredMemories snapshot) {
         if (linkTargetSearch != null) {
-            return linkTargetSearch.apply(query == null ? "" : query);
+            // A memory must never offer itself as a link target — a self-edge is always
+            // rejected downstream, so surfacing it just manufactures a dead-end click.
+            return linkTargetSearch.apply(query == null ? "" : query).stream()
+                    .filter(t -> !(t.kind() == LinkTargetKind.MEMORY && t.id().equals(source.getId())))
+                    .toList();
         }
         var out = new java.util.ArrayList<LinkTarget>();
         for (var cluster : snapshot.clusters()) {
@@ -1102,8 +1137,25 @@ public class PropositionsPanel extends VerticalLayout {
         return legend;
     }
 
+    /**
+     * Resolves collapse explanations for a whole batch of propositions in one call, ahead of
+     * rendering their cards, instead of leaving each card to look itself up. Call once per render
+     * pass with every id about to be shown, before the first {@link #createCard} of that pass.
+     */
+    private void resolveExplanations(Collection<String> propositionIds) {
+        resolvedExplanations = collapseExplanationProvider == null
+                ? Map.of()
+                : collapseExplanationProvider.explainAll(propositionIds);
+    }
+
     private PropositionCard createCard(Proposition prop) {
-        var card = new PropositionCard(prop, entityResolver, collapseExplanationProvider, onEntityPillClick);
+        // Cheap in-memory lookup against the batch resolved by resolveExplanations() for this
+        // render pass — not a call back into the host's provider, so the card's own collapse-badge
+        // lookup costs nothing extra per card.
+        CollapseExplanationProvider resolvedProvider = collapseExplanationProvider == null
+                ? null
+                : id -> Optional.ofNullable(resolvedExplanations.get(id));
+        var card = new PropositionCard(prop, entityResolver, resolvedProvider, onEntityPillClick);
         card.setLineageProvider(lineageProvider);
         card.setRelatedPropositionsLoader(relatedPropositionsLoader);
         card.setRelatedRecordsLoader(relatedRecordsLoader);
@@ -1143,7 +1195,7 @@ public class PropositionsPanel extends VerticalLayout {
         if (collapseExplanationProvider == null) {
             return;
         }
-        collapseExplanationProvider.explain(prop.getId())
+        Optional.ofNullable(resolvedExplanations.get(prop.getId()))
                 .filter(explanation -> !explanation.retired().isEmpty())
                 .ifPresent(explanation -> {
                     var badge = findCollapseBadge(card);
