@@ -329,6 +329,32 @@ class ClustersViewTest {
     }
 
     @Test
+    void linkTargetSearchResultsExcludeTheSourceMemoryItself() {
+        var panel = newPanel();
+        panel.setClustersProvider(this::twoClusterSnapshot);
+        // Host search echoes back BOTH unclustered memories — including u1, the card the
+        // popover was opened from. The panel must drop the self-target.
+        panel.setLinkTargetSearch(q -> List.of(
+                new MemoryClusters.LinkTarget(MemoryClusters.LinkTargetKind.MEMORY, "u1", "Ben's favorite mountain range is the Rockies"),
+                new MemoryClusters.LinkTarget(MemoryClusters.LinkTargetKind.MEMORY, "u2", "Ben mentors junior hikers")));
+        toggleClusters(panel);
+
+        var linkButtons = allComponents(panel).stream()
+                .filter(c -> c instanceof Button && c.hasClassName("link-btn"))
+                .map(c -> (Button) c)
+                .toList();
+        click(linkButtons.get(0)); // opens the popover for u1
+
+        var memoryTargetIds = allComponents(panel).stream()
+                .filter(c -> c instanceof Button && c.hasClassName("target-memory"))
+                .map(c -> allText(c))
+                .toList();
+        assertEquals(1, memoryTargetIds.size(), "self-target must be filtered out");
+        assertTrue(memoryTargetIds.get(0).contains("mentors junior hikers"),
+                "the remaining target is the other memory");
+    }
+
+    @Test
     void linkTargetSearchInvokedWithTypedTextAndResultsRerender() {
         var panel = newPanel();
         panel.setClustersProvider(this::twoClusterSnapshot);

@@ -1072,7 +1072,11 @@ public class PropositionsPanel extends VerticalLayout {
      */
     private List<LinkTarget> linkTargets(String query, Proposition source, ClusteredMemories snapshot) {
         if (linkTargetSearch != null) {
-            return linkTargetSearch.apply(query == null ? "" : query);
+            // A memory must never offer itself as a link target — a self-edge is always
+            // rejected downstream, so surfacing it just manufactures a dead-end click.
+            return linkTargetSearch.apply(query == null ? "" : query).stream()
+                    .filter(t -> !(t.kind() == LinkTargetKind.MEMORY && t.id().equals(source.getId())))
+                    .toList();
         }
         var out = new java.util.ArrayList<LinkTarget>();
         for (var cluster : snapshot.clusters()) {
