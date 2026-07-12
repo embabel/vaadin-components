@@ -141,10 +141,30 @@ public class DocumentListSection extends VerticalLayout {
         var title = new Span(doc.title() != null ? doc.title() : doc.uri());
         title.addClassName("document-title");
 
+        var badges = new HorizontalLayout();
+        badges.setPadding(false);
+        badges.setSpacing(false);
+        badges.getThemeList().add("spacing-xs");
+        badges.addClassName("document-badges");
+
         var contextBadge = new Span(doc.context());
         contextBadge.addClassName("context-badge");
+        badges.add(contextBadge);
 
-        infoSection.add(title, contextBadge);
+        // Pipeline surfacing: converted documents carry structure (headings/tables
+        // survived), and extracted figures are searchable — show both facts.
+        if (doc.converter() != null && !doc.converter().isBlank()) {
+            var convertedBadge = new Span("structured · " + doc.converter());
+            convertedBadge.addClassNames("context-badge", "converted-badge");
+            badges.add(convertedBadge);
+        }
+        if (doc.figureCount() > 0) {
+            var figuresBadge = new Span(doc.figureCount() == 1 ? "1 figure" : doc.figureCount() + " figures");
+            figuresBadge.addClassNames("context-badge", "figures-badge");
+            badges.add(figuresBadge);
+        }
+
+        infoSection.add(title, badges);
 
         var deleteButton = new Button(VaadinIcon.TRASH.create());
         deleteButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_SMALL);

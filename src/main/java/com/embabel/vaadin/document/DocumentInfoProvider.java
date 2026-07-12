@@ -24,7 +24,19 @@ import java.util.List;
  */
 public interface DocumentInfoProvider {
 
-    record DocumentInfo(String uri, String title, String context, int chunkCount, Instant ingestedAt) {}
+    /**
+     * @param converter   name of the conversion strategy that produced this document's
+     *                    structured form (e.g. "docling"), or null when ingested natively
+     * @param figureCount figures extracted from the document and indexed for search
+     */
+    record DocumentInfo(String uri, String title, String context, int chunkCount, Instant ingestedAt,
+                        String converter, int figureCount) {
+
+        /** Natively-ingested document — no converter, no figures. */
+        public DocumentInfo(String uri, String title, String context, int chunkCount, Instant ingestedAt) {
+            this(uri, title, context, chunkCount, ingestedAt, null, 0);
+        }
+    }
 
     List<DocumentInfo> getDocuments();
 
