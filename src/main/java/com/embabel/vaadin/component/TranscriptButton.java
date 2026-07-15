@@ -36,11 +36,24 @@ import java.util.function.Supplier;
  */
 public class TranscriptButton extends Button {
 
+    private static final String DEFAULT_ASSISTANT_NAME = "Assistant";
+
     private final Supplier<Conversation> conversationSupplier;
+    private final String assistantName;
 
     public TranscriptButton(Supplier<Conversation> conversationSupplier) {
+        this(conversationSupplier, DEFAULT_ASSISTANT_NAME);
+    }
+
+    /**
+     * @param assistantName the assistant's identity name, used to label assistant messages
+     *                      (falls back to "Assistant" when null or blank)
+     */
+    public TranscriptButton(Supplier<Conversation> conversationSupplier, String assistantName) {
         super(VaadinIcon.CLIPBOARD_TEXT.create());
         this.conversationSupplier = conversationSupplier;
+        this.assistantName = assistantName == null || assistantName.isBlank()
+                ? DEFAULT_ASSISTANT_NAME : assistantName;
         addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
         getElement().setAttribute("title", "Show conversation transcript");
         addClickListener(e -> showTranscript());
@@ -88,7 +101,8 @@ public class TranscriptButton extends Button {
         dialog.open();
     }
 
-    private static void buildHtmlTranscript(Conversation conversation, Div container) {
+    // Package-private (not static) for tests: labels depend on the configured assistant name.
+    void buildHtmlTranscript(Conversation conversation, Div container) {
         for (var message : conversation.getMessages()) {
             var role = message.getRole();
             var text = message.getContent();
@@ -98,7 +112,7 @@ public class TranscriptButton extends Button {
             if (role == MessageRole.USER) {
                 label = "You";
             } else if (role == MessageRole.ASSISTANT) {
-                label = "Assistant";
+                label = assistantName;
             } else {
                 continue;
             }
@@ -122,7 +136,7 @@ public class TranscriptButton extends Button {
         }
     }
 
-    private static String buildPlainTranscript(Conversation conversation) {
+    String buildPlainTranscript(Conversation conversation) {
         var sb = new StringBuilder();
         for (var message : conversation.getMessages()) {
             var role = message.getRole();
@@ -132,7 +146,7 @@ public class TranscriptButton extends Button {
             if (role == MessageRole.USER) {
                 sb.append("You: ").append(content.strip()).append("\n\n");
             } else if (role == MessageRole.ASSISTANT) {
-                sb.append("Assistant: ").append(content.strip()).append("\n\n");
+                sb.append(assistantName).append(": ").append(content.strip()).append("\n\n");
             }
         }
         return sb.toString().strip();
