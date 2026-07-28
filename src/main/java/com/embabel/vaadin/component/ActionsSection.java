@@ -39,7 +39,7 @@ public class ActionsSection extends VerticalLayout {
      * <p>{@code deletable} controls whether the section's delete affordance
      * is shown for this entry. Caller decides what "deletable" means —
      * typically "the user owns this action's YAML on disk" (workspace-
-     * direct actions), not pack-shipped or platform-defined ones.
+     * direct actions), not realm-shipped or platform-defined ones.
      */
     public record ActionInfo(
             String name,
@@ -125,7 +125,7 @@ public class ActionsSection extends VerticalLayout {
      * Card variant with optional Run and Delete callbacks. Delete is
      * shown only when {@code action.deletable()} is true and
      * {@code onDelete} is non-null — lets a single action listing mix
-     * deletable user-owned actions with non-deletable pack-shipped /
+     * deletable user-owned actions with non-deletable realm-shipped /
      * platform-defined ones in one component.
      */
     public static Div createActionCard(

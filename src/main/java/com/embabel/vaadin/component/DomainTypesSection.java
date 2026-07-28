@@ -80,7 +80,7 @@ public class DomainTypesSection extends VerticalLayout {
         // DynamicTypes carry dotted namespaces (`gmail.thread`,
         // `github.pr_review_request`) that DomainType.ownLabel — designed
         // for stripping JVM FQNs — would shred to `Thread` /
-        // `Pr_review_request`, collapsing every pack's namespace and
+        // `Pr_review_request`, collapsing every realm's namespace and
         // hiding the contributor identity. Render the full name for
         // DynamicType; ownLabel is still right for JvmType.
         var nameSpan = new Span(isDynamic ? type.getName() : type.getOwnLabel());
